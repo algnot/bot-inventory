@@ -154,6 +154,7 @@ export default function HomePage() {
           boxes={state?.boxes ?? []}
           people={state?.people ?? []}
           unlockedBoxIds={state?.unlockedBoxIds ?? []}
+          placements={state?.placements ?? []}
           cards={catalog}
           card={placeCard}
           onClose={() => {

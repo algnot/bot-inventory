@@ -245,6 +245,7 @@ export default function CatalogPage() {
           boxes={state?.boxes ?? []}
           people={state?.people ?? []}
           unlockedBoxIds={state?.unlockedBoxIds ?? []}
+          placements={state?.placements ?? []}
           cards={cards}
           card={placeCard}
           onClose={() => setPlaceCard(null)}

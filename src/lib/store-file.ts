@@ -262,6 +262,66 @@ export function addPlacements(input: {
   });
 }
 
+export function setRowPlacements(input: {
+  boxId: string;
+  row: number;
+  notes?: string;
+  items: Array<{ print: string; rare: string; quantity?: number }>;
+}) {
+  return updateStore((data) => {
+    const box = data.boxes.find((item) => item.id === input.boxId);
+    if (!box) throw new Error("ไม่พบกล่อง");
+    if (input.row < 1 || input.row > box.rows) throw new Error("แถวไม่ถูกต้อง");
+    const notes = input.notes?.trim() ?? "";
+    const addedAt = new Date().toISOString();
+
+    const wanted = new Map<string, { print: string; rare: string; quantity: number }>();
+    for (const item of input.items) {
+      const print = item.print.trim();
+      const rare = item.rare.trim();
+      if (!print || !rare) continue;
+      const quantity = Math.max(1, Math.floor(item.quantity ?? 1));
+      const key = `${print}::${rare}`;
+      const prev = wanted.get(key);
+      wanted.set(key, {
+        print,
+        rare,
+        quantity: (prev?.quantity ?? 0) + quantity,
+      });
+    }
+
+    const keepIds = new Set<string>();
+    for (const existing of data.placements) {
+      if (existing.boxId !== input.boxId || existing.row !== input.row) continue;
+      const key = `${existing.print}::${existing.rare}`;
+      const next = wanted.get(key);
+      if (!next) continue;
+      existing.quantity = next.quantity;
+      existing.notes = notes;
+      keepIds.add(existing.id);
+      wanted.delete(key);
+    }
+
+    data.placements = data.placements.filter(
+      (item) =>
+        item.boxId !== input.boxId || item.row !== input.row || keepIds.has(item.id),
+    );
+
+    for (const item of wanted.values()) {
+      data.placements.push({
+        id: crypto.randomUUID(),
+        boxId: input.boxId,
+        row: input.row,
+        print: item.print,
+        rare: item.rare,
+        quantity: item.quantity,
+        notes,
+        addedAt,
+      });
+    }
+  });
+}
+
 export function updatePlacement(
   id: string,
   patch: Partial<Pick<Placement, "row" | "boxId" | "quantity" | "notes">>,

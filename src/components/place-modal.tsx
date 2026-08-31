@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Box, Card, Person } from "@/lib/types";
+import type { Box, Card, Person, Placement } from "@/lib/types";
 import { cardKey } from "@/lib/types";
 import { CardImage } from "./card-image";
 import { MultiFilter } from "./multi-filter";
@@ -15,7 +15,20 @@ import { seriesCode, seriesLabel } from "@/lib/series";
 type SelectedItem = {
   card: Card;
   quantity: number;
+  placementId?: string;
 };
+
+function stubCard(print: string, rare: string): Card {
+  return { name: print, type: "", soi: 0, print, rare };
+}
+
+function fingerprint(items: SelectedItem[], notesValue: string) {
+  const cards = items
+    .map((item) => `${cardKey(item.card.print, item.card.rare)}:${item.quantity}`)
+    .sort()
+    .join("|");
+  return `${cards}#${notesValue.trim()}`;
+}
 
 function QtyStepper({
   value,
@@ -54,6 +67,7 @@ export function PlaceModal({
   people = [],
   unlockedBoxIds = [],
   cards,
+  placements = [],
   card: lockedCard,
   boxId: defaultBoxId,
   row: defaultRow,
@@ -64,6 +78,7 @@ export function PlaceModal({
   people?: Person[];
   unlockedBoxIds?: string[];
   cards: Card[];
+  placements?: Placement[];
   card?: Card | null;
   boxId?: string;
   row?: number;
@@ -71,9 +86,7 @@ export function PlaceModal({
   onSaved: () => void;
 }) {
   const [query, setQuery] = useState(lockedCard?.name ?? "");
-  const [selected, setSelected] = useState<SelectedItem[]>(
-    lockedCard ? [{ card: lockedCard, quantity: 1 }] : [],
-  );
+  const [selected, setSelected] = useState<SelectedItem[]>([]);
   const [boxId, setBoxId] = useState(defaultBoxId ?? boxes[0]?.id ?? "");
   const [row, setRow] = useState(defaultRow ?? 1);
   const [notes, setNotes] = useState("");
@@ -83,14 +96,54 @@ export function PlaceModal({
   const [types, setTypes] = useState<string[]>([]);
   const [rares, setRares] = useState<string[]>([]);
   const selectedListRef = useRef<HTMLDivElement>(null);
+  const baselineRef = useRef(fingerprint([], ""));
+  const originalCountRef = useRef(0);
 
   const box = boxes.find((item) => item.id === boxId);
   const selectedCount = selected.reduce((sum, item) => sum + item.quantity, 0);
+  const dirty = fingerprint(selected, notes) !== baselineRef.current;
+
+  const cardsByKey = useMemo(() => {
+    const map = new Map<string, Card>();
+    for (const card of cards) map.set(cardKey(card.print, card.rare), card);
+    return map;
+  }, [cards]);
+
+  const placementsRef = useRef(placements);
+  const cardsByKeyRef = useRef(cardsByKey);
+  placementsRef.current = placements;
+  cardsByKeyRef.current = cardsByKey;
 
   useEffect(() => {
     if (defaultRow) setRow(defaultRow);
     if (defaultBoxId) setBoxId(defaultBoxId);
   }, [defaultBoxId, defaultRow]);
+
+  useEffect(() => {
+    const rowPlacements = placementsRef.current.filter(
+      (item) => item.boxId === boxId && item.row === row,
+    );
+    const original: SelectedItem[] = rowPlacements.map((item) => ({
+      card:
+        cardsByKeyRef.current.get(cardKey(item.print, item.rare)) ??
+        stubCard(item.print, item.rare),
+      quantity: item.quantity,
+      placementId: item.id,
+    }));
+    const rowNotes = rowPlacements[0]?.notes ?? "";
+    let items = original;
+    if (lockedCard) {
+      const key = cardKey(lockedCard.print, lockedCard.rare);
+      if (!original.some((item) => cardKey(item.card.print, item.card.rare) === key)) {
+        items = [{ card: lockedCard, quantity: 1 }, ...original];
+      }
+    }
+    setSelected(items);
+    setNotes(rowNotes);
+    setError(null);
+    originalCountRef.current = original.length;
+    baselineRef.current = fingerprint(original, rowNotes);
+  }, [boxId, row, lockedCard]);
 
   const seriesOptions = useMemo(() => {
     return [...new Set(cards.map((card) => seriesCode(card.print)))]
@@ -153,14 +206,13 @@ export function PlaceModal({
           return [item];
         }
         const next = item.quantity + delta;
-        if (next < 1) return lockedCard ? [{ ...item, quantity: 1 }] : [];
+        if (next < 1) return [];
         return [{ ...item, quantity: next }];
       }),
     );
   }
 
   function removeCard(card: Card) {
-    if (lockedCard) return;
     setSelected((current) =>
       current.filter(
         (item) => item.card.print !== card.print || item.card.rare !== card.rare,
@@ -169,12 +221,20 @@ export function PlaceModal({
   }
 
   async function save() {
-    if (!selected.length) {
+    if (!boxId) {
+      setError("สร้างกล่องก่อน");
+      return;
+    }
+    if (!dirty) return;
+    if (!selected.length && originalCountRef.current === 0) {
       setError("เลือกการ์ดก่อน");
       return;
     }
-    if (!boxId) {
-      setError("สร้างกล่องก่อน");
+    if (
+      !selected.length &&
+      originalCountRef.current > 0 &&
+      !confirm("ลบการ์ดทั้งหมดในแถวนี้?")
+    ) {
       return;
     }
     const dest = boxes.find((item) => item.id === boxId);
@@ -187,7 +247,7 @@ export function PlaceModal({
     setError(null);
     try {
       const res = await fetch("/api/inventory", {
-        method: "POST",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           boxId,
@@ -254,14 +314,6 @@ export function PlaceModal({
               ))}
             </select>
           </label>
-          <label className="col-span-2 hidden text-sm font-bold md:block">
-            หมายเหตุ
-            <input
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              className="mt-1 h-10 w-full rounded-xl border-2 border-ink bg-white px-3 sm:h-11"
-            />
-          </label>
         </div>
       )}
       {box && box.pinEnabled && !canEditBox(box, unlockedBoxIds) && (
@@ -276,6 +328,17 @@ export function PlaceModal({
     </>
   );
 
+  const notesField = (
+    <label className="hidden text-sm font-bold md:block">
+      หมายเหตุ
+      <input
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+        className="mt-1 h-10 w-full rounded-xl border-2 border-ink bg-white px-3 sm:h-11"
+      />
+    </label>
+  );
+
   const selectedList = (
     <>
       {selected.length > 0 && (
@@ -288,7 +351,7 @@ export function PlaceModal({
               key={cardKey(item.card.print, item.card.rare)}
               className="flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border-2 border-ink bg-white p-1"
             >
-              <div className="w-12 overflow-hidden rounded-md border border-ink">
+              <div className="relative w-12 overflow-hidden rounded-md border border-ink">
                 <CardImage
                   print={item.card.print}
                   rare={item.card.rare}
@@ -298,6 +361,9 @@ export function PlaceModal({
               <p className="w-full truncate text-center text-[11px] font-extrabold">
                 {item.card.name}
               </p>
+              {!item.placementId && (
+                <span className="text-[10px] font-bold text-bot-red">ใหม่</span>
+              )}
               <QtyStepper
                 value={item.quantity}
                 onMinus={() => bump(item.card, -1)}
@@ -317,7 +383,7 @@ export function PlaceModal({
       <div className="hidden min-h-0 flex-1 flex-col space-y-2 overflow-y-auto md:flex">
         {selected.length === 0 ? (
           <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
-            กดการ์ดจากแคตตาล็อกเพื่อเพิ่มจำนวน
+            แถวนี้ยังไม่มีการ์ด — กดจากแคตตาล็อกเพื่อเพิ่ม
           </p>
         ) : (
           selected.map((item) => (
@@ -335,8 +401,13 @@ export function PlaceModal({
               <div className="min-w-0 flex-1">
                 <p className="truncate font-extrabold">{item.card.name}</p>
                 <p className="text-xs text-muted">{item.card.print}</p>
-                <div className="mt-1">
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   <RarityBadge rare={item.card.rare} compact />
+                  {!item.placementId && (
+                    <span className="rounded-full bg-bot-red px-1.5 py-0.5 text-[10px] font-black text-white">
+                      ใหม่
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
@@ -345,15 +416,13 @@ export function PlaceModal({
                   onMinus={() => bump(item.card, -1)}
                   onPlus={() => bump(item.card, 1)}
                 />
-                {!lockedCard && (
-                  <button
-                    type="button"
-                    onClick={() => removeCard(item.card)}
-                    className="text-xs font-bold text-muted underline hover:text-bot-red"
-                  >
-                    เอาออก
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => removeCard(item.card)}
+                  className="text-xs font-bold text-muted underline hover:text-bot-red"
+                >
+                  เอาออก
+                </button>
               </div>
             </div>
           ))
@@ -361,6 +430,14 @@ export function PlaceModal({
       </div>
     </>
   );
+
+  const saveLabel = saving
+    ? "กำลังบันทึก..."
+    : !selected.length && originalCountRef.current > 0
+      ? "ลบการ์ดทั้งหมดในแถวนี้"
+      : selectedCount > 0
+        ? `บันทึกแถวนี้ · ${selectedCount} ใบ`
+        : "บันทึกแถวนี้";
 
   return (
     <div
@@ -376,7 +453,7 @@ export function PlaceModal({
             <h2 className="text-xl font-extrabold">ใส่การ์ดลงแถว</h2>
             {!lockedCard && (
               <p className="mt-0.5 hidden text-sm text-muted sm:block">
-                กดการ์ดซ้ำเพื่อเพิ่มจำนวน แล้วบันทึกครั้งเดียว
+                แก้จำนวนในแถวนี้ได้เลย กดการ์ดซ้ำเพื่อเพิ่ม
               </p>
             )}
           </div>
@@ -391,16 +468,22 @@ export function PlaceModal({
 
         {lockedCard ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 sm:p-5">
-            {selectedList}
             {locationFields}
+            <p className="text-sm font-bold">
+              {selected.length
+                ? `ในแถวนี้ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
+                : "แถวนี้ยังไม่มีการ์ด"}
+            </p>
+            {selectedList}
+            {notesField}
             {error && <p className="text-sm font-bold text-bot-red">{error}</p>}
             <button
               type="button"
               onClick={() => void save()}
-              disabled={saving || selected.length === 0 || !boxId}
+              disabled={saving || !dirty || !boxId}
               className="w-full rounded-full border-2 border-ink bg-ink py-3 font-extrabold text-cream disabled:opacity-50"
             >
-              {saving ? "กำลังบันทึก..." : "บันทึกลงแถวนี้"}
+              {saveLabel}
             </button>
           </div>
         ) : (
@@ -532,26 +615,23 @@ export function PlaceModal({
             </section>
 
             <section className="flex min-w-0 shrink-0 flex-col gap-2 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 md:min-h-0 md:flex-1 md:gap-3 md:pb-4">
+              <div className="shrink-0 space-y-2">{locationFields}</div>
               <p className="shrink-0 text-sm font-bold">
                 {selected.length
-                  ? `จะใส่ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
-                  : "รายการที่จะใส่ลงแถว"}
+                  ? `ในแถวนี้ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
+                  : "แถวนี้ยังไม่มีการ์ด"}
               </p>
               {selectedList}
               <div className="shrink-0 space-y-2 border-t-2 border-ink/15 pt-2 md:space-y-3 md:pt-3">
-                {locationFields}
+                {notesField}
                 {error && <p className="text-sm font-bold text-bot-red">{error}</p>}
                 <button
                   type="button"
                   onClick={() => void save()}
-                  disabled={saving || selected.length === 0 || !boxId}
+                  disabled={saving || !dirty || !boxId}
                   className="w-full rounded-full border-2 border-ink bg-ink py-2.5 text-sm font-extrabold text-cream disabled:opacity-50 sm:py-3 sm:text-base"
                 >
-                  {saving
-                    ? "กำลังบันทึก..."
-                    : selectedCount > 0
-                      ? `บันทึก ${selectedCount} ใบลงแถวนี้`
-                      : "บันทึกลงแถวนี้"}
+                  {saveLabel}
                 </button>
               </div>
             </section>

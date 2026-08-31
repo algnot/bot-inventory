@@ -292,6 +292,7 @@ export default function BoxDetailPage() {
           boxes={state.boxes}
           people={state.people}
           unlockedBoxIds={state.unlockedBoxIds}
+          placements={state.placements}
           cards={catalog}
           boxId={box.id}
           row={placeRow}

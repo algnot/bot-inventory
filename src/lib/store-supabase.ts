@@ -278,6 +278,110 @@ export async function addPlacements(input: {
   return loadStore();
 }
 
+export async function setRowPlacements(input: {
+  boxId: string;
+  row: number;
+  notes?: string;
+  items: Array<{ print: string; rare: string; quantity?: number }>;
+}) {
+  const supabase = getSupabase();
+  const { data: box, error: boxError } = await supabase
+    .from("boxes")
+    .select("id, rows")
+    .eq("id", input.boxId)
+    .maybeSingle();
+  if (boxError) fail(boxError);
+  if (!box) throw new Error("ไม่พบกล่อง");
+  if (input.row < 1 || input.row > box.rows) throw new Error("แถวไม่ถูกต้อง");
+
+  const notes = input.notes?.trim() ?? "";
+  const { data: existingRows, error: findError } = await supabase
+    .from("placements")
+    .select("*")
+    .eq("box_id", input.boxId)
+    .eq("row", input.row);
+  if (findError) fail(findError);
+
+  const existingMap = new Map(
+    ((existingRows ?? []) as PlacementRow[]).map((row) => [
+      `${row.print}::${row.rare}`,
+      row,
+    ]),
+  );
+
+  const wanted = new Map<string, { print: string; rare: string; quantity: number }>();
+  for (const item of input.items) {
+    const print = item.print.trim();
+    const rare = item.rare.trim();
+    if (!print || !rare) continue;
+    const key = `${print}::${rare}`;
+    const quantity = Math.max(1, Math.floor(item.quantity ?? 1));
+    const prev = wanted.get(key);
+    wanted.set(key, {
+      print,
+      rare,
+      quantity: (prev?.quantity ?? 0) + quantity,
+    });
+  }
+
+  const updates: Array<{ id: string; quantity: number }> = [];
+  const inserts: Array<{
+    box_id: string;
+    row: number;
+    print: string;
+    rare: string;
+    quantity: number;
+    notes: string;
+  }> = [];
+  const keepIds = new Set<string>();
+
+  for (const item of wanted.values()) {
+    const existing = existingMap.get(`${item.print}::${item.rare}`);
+    if (existing) {
+      updates.push({ id: existing.id, quantity: item.quantity });
+      keepIds.add(existing.id);
+    } else {
+      inserts.push({
+        box_id: input.boxId,
+        row: input.row,
+        print: item.print,
+        rare: item.rare,
+        quantity: item.quantity,
+        notes,
+      });
+    }
+  }
+
+  const deleteIds = ((existingRows ?? []) as PlacementRow[])
+    .filter((row) => !keepIds.has(row.id))
+    .map((row) => row.id);
+
+  if (updates.length) {
+    const results = await Promise.all(
+      updates.map((item) =>
+        supabase
+          .from("placements")
+          .update({ quantity: item.quantity, notes })
+          .eq("id", item.id),
+      ),
+    );
+    const updateError = results.find((result) => result.error)?.error;
+    if (updateError) fail(updateError);
+  }
+
+  if (deleteIds.length) {
+    const { error } = await supabase.from("placements").delete().in("id", deleteIds);
+    if (error) fail(error);
+  }
+
+  if (inserts.length) {
+    const { error } = await supabase.from("placements").insert(inserts);
+    if (error) fail(error);
+  }
+
+  return loadStore();
+}
+
 export async function updatePlacement(
   id: string,
   patch: Partial<Pick<Placement, "row" | "boxId" | "quantity" | "notes">>,

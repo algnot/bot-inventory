@@ -66,6 +66,15 @@ export function addPlacements(input: {
   return backend().addPlacements(input);
 }
 
+export function setRowPlacements(input: {
+  boxId: string;
+  row: number;
+  notes?: string;
+  items: Array<{ print: string; rare: string; quantity?: number }>;
+}) {
+  return backend().setRowPlacements(input);
+}
+
 export function updatePlacement(
   id: string,
   patch: Partial<Pick<Placement, "row" | "boxId" | "quantity" | "notes">>,
