@@ -5,43 +5,29 @@ import { useEffect, useState } from "react";
 import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
 import { Pagination } from "@/components/pagination";
-import { PlaceModal } from "@/components/place-modal";
 import { MoveModal, type MoveItem } from "@/components/move-modal";
 import { RarityBadge } from "@/components/rarity-badge";
 import { locationLabel } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
-import { catalogVersion, loadCatalogClient } from "@/lib/catalog-client";
-import type { Card, LocatedCard } from "@/lib/types";
+import type { LocatedCard } from "@/lib/types";
 
 const PAGE_SIZE = 20;
 
 export default function HomePage() {
+  const [draft, setDraft] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const { state, loading, reload, error } = useAppState(query);
   const [detail, setDetail] = useState<LocatedCard | null>(null);
-  const [placeOpen, setPlaceOpen] = useState(false);
-  const [placeCard, setPlaceCard] = useState<Card | null>(null);
-  const [catalog, setCatalog] = useState<Card[]>([]);
   const [moveItems, setMoveItems] = useState<MoveItem[] | null>(null);
 
   useEffect(() => {
     setPage(1);
   }, [query]);
 
-  async function ensureCatalog() {
-    if (catalog.length) return catalog;
-    const cards = await loadCatalogClient(
-      catalogVersion(state?.meta.syncedAt, state?.catalogCount),
-    );
-    setCatalog(cards);
-    return cards;
-  }
-
-  async function openPlace(card: Card | null = null) {
-    await ensureCatalog();
-    setPlaceCard(card);
-    setPlaceOpen(true);
+  function search(event?: React.FormEvent) {
+    event?.preventDefault();
+    setQuery(draft.trim());
   }
 
   const ownedCount =
@@ -59,21 +45,20 @@ export default function HomePage() {
         <p className="text-xs font-bold tracking-wide text-bot-red">
           คลังการ์ด BOT ของต้นก้า
         </p>
-        <div className="mt-5 flex flex-col gap-3 md:flex-row">
+        <form onSubmit={search} className="mt-5 flex flex-col gap-3 md:flex-row">
           <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
             placeholder="พิมพ์ชื่อการ์ด เช่น พระอิศวร หรือ BT01-001"
             className="w-full flex-1 rounded-full border-2 border-ink bg-white px-4 py-3 text-base outline-none focus:ring-2 focus:ring-ink/20 sm:px-5 sm:text-lg"
           />
           <button
-            type="button"
-            onClick={() => void openPlace()}
+            type="submit"
             className="rounded-full border-2 border-ink bg-ink px-5 py-3 font-extrabold text-cream"
           >
-            เพิ่มการ์ดลงกล่อง
+            ค้นหา
           </button>
-        </div>
+        </form>
         <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold">
           <span className="rounded-full border-2 border-ink bg-white px-3 py-1">
             ในคลัง {ownedCount} ใบ
@@ -166,8 +151,7 @@ export default function HomePage() {
 
       {state && query && state.located.length === 0 && (
         <p className="mt-6 text-center font-medium text-muted">
-          ไม่พบการ์ดนี้ในกล่องของเรา —
-          ลองค้นจากหน้าการ์ดทั้งหมดแล้วกดใส่เข้ากล่อง
+          ไม่พบการ์ดนี้ในกล่องของเรา
         </p>
       )}
 
@@ -176,10 +160,6 @@ export default function HomePage() {
           card={detail.card}
           locations={[detail]}
           onClose={() => setDetail(null)}
-          onPlace={(card) => {
-            setDetail(null);
-            void openPlace(card);
-          }}
           onMove={(item) => {
             setDetail(null);
             setMoveItems([
@@ -204,22 +184,6 @@ export default function HomePage() {
           items={moveItems}
           onClose={() => setMoveItems(null)}
           onMoved={() => void reload()}
-        />
-      )}
-
-      {placeOpen && (
-        <PlaceModal
-          boxes={state?.boxes ?? []}
-          people={state?.people ?? []}
-          unlockedBoxIds={state?.unlockedBoxIds ?? []}
-          placements={state?.placements ?? []}
-          cards={catalog}
-          card={placeCard}
-          onClose={() => {
-            setPlaceOpen(false);
-            setPlaceCard(null);
-          }}
-          onSaved={() => void reload()}
         />
       )}
     </div>

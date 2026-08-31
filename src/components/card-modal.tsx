@@ -208,7 +208,7 @@ export function CardModal({
               <button
                 type="button"
                 onClick={() => onMove(locations[0])}
-                className="mt-3 w-full rounded-full border-2 border-ink bg-white py-3 font-extrabold hover:bg-gold"
+                className={`${onPlace ? "mt-3" : "mt-5"} w-full rounded-full border-2 border-ink bg-white py-3 font-extrabold hover:bg-gold`}
               >
                 ย้ายไปกล่องอื่น
               </button>
