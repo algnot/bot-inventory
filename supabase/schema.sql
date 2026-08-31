@@ -1,5 +1,5 @@
 -- BOT Inventory — วางใน SQL Editor ของ Supabase แล้วกด Run
--- Project Settings → API: คัดลอก URL + service_role ใส่ .env.local
+-- Project Settings → API: คัดลอก URL + secret หรือ publishable ใส่ .env.local
 
 create table if not exists people (
   id uuid primary key default gen_random_uuid(),
@@ -47,3 +47,28 @@ alter table people enable row level security;
 alter table boxes enable row level security;
 alter table placements enable row level security;
 alter table catalog_meta enable row level security;
+
+-- publishable / anon key ต้องมี policy ถึงจะอ่าน-เขียนได้
+-- (secret / service_role ข้าม RLS ได้อยู่แล้ว)
+drop policy if exists bot_inventory_people_all on people;
+drop policy if exists bot_inventory_boxes_all on boxes;
+drop policy if exists bot_inventory_placements_all on placements;
+drop policy if exists bot_inventory_catalog_meta_all on catalog_meta;
+
+create policy bot_inventory_people_all
+  on people for all to anon, authenticated
+  using (true) with check (true);
+
+create policy bot_inventory_boxes_all
+  on boxes for all to anon, authenticated
+  using (true) with check (true);
+
+create policy bot_inventory_placements_all
+  on placements for all to anon, authenticated
+  using (true) with check (true);
+
+create policy bot_inventory_catalog_meta_all
+  on catalog_meta for all to anon, authenticated
+  using (true) with check (true);
+
+grant all on table people, boxes, placements, catalog_meta to anon, authenticated, service_role;

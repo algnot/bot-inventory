@@ -3,13 +3,28 @@ import type { Box, CatalogMeta, Person, Placement } from "./types";
 
 export type StorageMode = "supabase" | "file";
 
+export function supabaseUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || undefined;
+}
+
+export function supabaseKey(): string | undefined {
+  return (
+    process.env.SUPABASE_SECRET_KEY?.trim() ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    process.env.SUPABASE_ANON_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    undefined
+  );
+}
+
 export function storageMode(): StorageMode {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = supabaseUrl();
+  const key = supabaseKey();
   if (url && key) return "supabase";
   if (url || key) {
     throw new Error(
-      "ตั้งค่า NEXT_PUBLIC_SUPABASE_URL และ SUPABASE_SERVICE_ROLE_KEY ให้ครบใน .env.local",
+      "ตั้งค่า NEXT_PUBLIC_SUPABASE_URL และคีย์ (secret หรือ publishable) ให้ครบใน .env.local",
     );
   }
   return "file";
@@ -18,8 +33,8 @@ export function storageMode(): StorageMode {
 let client: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const url = supabaseUrl();
+  const key = supabaseKey();
   if (!url || !key) {
     throw new Error("ยังไม่ได้ตั้งค่า Supabase");
   }
@@ -113,6 +128,9 @@ export function mapMeta(row: CatalogMetaRow | null): CatalogMeta {
 export function explainSupabaseError(error: { code?: string; message: string }): string {
   if (error.code === "42P01") {
     return "ยังไม่มีตารางใน Supabase — เปิด SQL Editor แล้วรันไฟล์ supabase/schema.sql";
+  }
+  if (error.code === "42501" || /row-level security/i.test(error.message)) {
+    return "Supabase กันการเขียนไว้ (RLS) — เปิด SQL Editor แล้วรันไฟล์ supabase/rls.sql";
   }
   if (error.code === "23505") {
     if (error.message.includes("people_name")) return "มีชื่อนี้อยู่แล้ว";

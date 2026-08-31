@@ -22,12 +22,15 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 1. สร้างโปรเจกต์ที่ [supabase.com](https://supabase.com)
 2. เปิด SQL Editor วางเนื้อหาใน `supabase/schema.sql` แล้วกด Run
-3. ที่ Project Settings → API คัดลอก Project URL และ `service_role` key ใส่ `.env.local`:
+3. ที่ Project Settings → API คัดลอก Project URL และคีย์ใส่ `.env.local`
+   (Secret `sb_secret_...` หรือ Publishable `sb_publishable_...` ก็ได้):
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
 ```
+
+ถ้าใช้ publishable key แล้วเจอ RLS ให้รัน `supabase/rls.sql` ใน SQL Editor ด้วย
 
 4. รีสตาร์ท `npm run dev`
 
