@@ -1,29 +1,37 @@
-import { promises as fs } from "fs";
-import path from "path";
 import type { Card } from "./types";
 import { cardKey } from "./types";
+import { storageMode } from "./supabase";
+import { isReadOnlyError, loadCatalogFile, saveCatalogFile } from "./catalog-file";
+import { loadCatalogSupabase, saveCatalogSupabase } from "./catalog-supabase";
 
-const CATALOG_PATH = path.join(process.cwd(), "data", "cards.json");
-
-let cache: { cards: Card[]; mtimeMs: number } | null = null;
+let memory: Card[] | null = null;
 
 export async function loadCatalog(): Promise<Card[]> {
-  try {
-    const stat = await fs.stat(CATALOG_PATH);
-    if (cache && cache.mtimeMs === stat.mtimeMs) return cache.cards;
-    const raw = await fs.readFile(CATALOG_PATH, "utf8");
-    const cards = JSON.parse(raw) as Card[];
-    cache = { cards, mtimeMs: stat.mtimeMs };
-    return cards;
-  } catch {
-    return [];
+  if (memory) return memory;
+  if (storageMode() === "supabase") {
+    const fromDb = await loadCatalogSupabase();
+    if (fromDb.length > 0) {
+      memory = fromDb;
+      return fromDb;
+    }
   }
+  const fromFile = await loadCatalogFile();
+  memory = fromFile;
+  return fromFile;
 }
 
 export async function saveCatalog(cards: Card[]) {
-  await fs.mkdir(path.dirname(CATALOG_PATH), { recursive: true });
-  await fs.writeFile(CATALOG_PATH, JSON.stringify(cards), "utf8");
-  cache = { cards, mtimeMs: Date.now() };
+  memory = cards;
+  if (storageMode() === "supabase") {
+    await saveCatalogSupabase(cards);
+    try {
+      await saveCatalogFile(cards);
+    } catch (error) {
+      if (!isReadOnlyError(error)) throw error;
+    }
+    return;
+  }
+  await saveCatalogFile(cards);
 }
 
 export function findCard(cards: Card[], print: string, rare: string) {

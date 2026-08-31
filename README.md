@@ -18,7 +18,9 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Supabase
 
-คลังกล่อง เจ้าของ และการ์ดในกล่อง เก็บบน Supabase ได้ แคตตาล็อกการ์ดยังอยู่ที่ `data/cards.json`
+คลังกล่อง เจ้าของ การ์ดในกล่อง และแคตตาล็อกการ์ด เก็บบน Supabase ได้
+
+ถ้าตารางอื่นมีอยู่แล้ว ให้รัน `supabase/cards.sql` ด้วย เพื่อให้ปุ่มซิงก์การ์ดเขียนลงฐานข้อมูลได้ (บน Vercel เขียนไฟล์ไม่ได้)
 
 1. สร้างโปรเจกต์ที่ [supabase.com](https://supabase.com)
 2. เปิด SQL Editor วางเนื้อหาใน `supabase/schema.sql` แล้วกด Run

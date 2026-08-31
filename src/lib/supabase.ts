@@ -127,7 +127,7 @@ export function mapMeta(row: CatalogMetaRow | null): CatalogMeta {
 
 export function explainSupabaseError(error: { code?: string; message: string }): string {
   if (error.code === "42P01") {
-    return "ยังไม่มีตารางใน Supabase — เปิด SQL Editor แล้วรันไฟล์ supabase/schema.sql";
+    return "ยังไม่มีตารางใน Supabase — เปิด SQL Editor แล้วรัน supabase/schema.sql (หรือ supabase/cards.sql ถ้ามีตารางอื่นอยู่แล้ว)";
   }
   if (error.code === "42501" || /row-level security/i.test(error.message)) {
     return "Supabase กันการเขียนไว้ (RLS) — เปิด SQL Editor แล้วรันไฟล์ supabase/rls.sql";
