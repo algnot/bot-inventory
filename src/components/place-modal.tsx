@@ -9,6 +9,7 @@ import { RarityBadge } from "./rarity-badge";
 import { searchCards } from "@/lib/catalog-search";
 import { displayRare } from "@/lib/image";
 import { personName, typeLabel } from "@/lib/labels";
+import { compressImageFile } from "@/lib/compress-image";
 import { canEditBox, requestUnlock, throwIfApiError } from "@/lib/lock-client";
 import { seriesCode, seriesLabel } from "@/lib/series";
 
@@ -16,18 +17,59 @@ type SelectedItem = {
   card: Card;
   quantity: number;
   placementId?: string;
+  fromScan?: boolean;
 };
 
 function stubCard(print: string, rare: string): Card {
   return { name: print, type: "", soi: 0, print, rare };
 }
 
-function fingerprint(items: SelectedItem[], notesValue: string) {
-  const cards = items
-    .map((item) => `${cardKey(item.card.print, item.card.rare)}:${item.quantity}`)
-    .sort()
-    .join("|");
-  return `${cards}#${notesValue.trim()}`;
+function fingerprint(
+  existing: SelectedItem[],
+  incoming: SelectedItem[],
+  notesValue: string,
+) {
+  const part = (items: SelectedItem[], tag: string) =>
+    `${tag}:${items
+      .map((item) => `${cardKey(item.card.print, item.card.rare)}:${item.quantity}`)
+      .sort()
+      .join("|")}`;
+  return `${part(existing, "e")}#${part(incoming, "i")}#${notesValue.trim()}`;
+}
+
+function bumpList(
+  current: SelectedItem[],
+  card: Card,
+  delta: number,
+): SelectedItem[] {
+  return current.flatMap((item) => {
+    if (item.card.print !== card.print || item.card.rare !== card.rare) return [item];
+    const next = item.quantity + delta;
+    if (next < 1) return [];
+    return [{ ...item, quantity: next }];
+  });
+}
+
+function addToList(current: SelectedItem[], card: Card, quantity: number, fromScan: boolean) {
+  const index = current.findIndex(
+    (item) => item.card.print === card.print && item.card.rare === card.rare,
+  );
+  if (index < 0) {
+    return [{ card, quantity, fromScan }, ...current];
+  }
+  const next = {
+    ...current[index],
+    quantity: current[index].quantity + quantity,
+    fromScan: current[index].fromScan || fromScan,
+  };
+  return [next, ...current.filter((_, i) => i !== index)];
+}
+
+function qtyIn(list: SelectedItem[], card: Card) {
+  return (
+    list.find((item) => item.card.print === card.print && item.card.rare === card.rare)
+      ?.quantity ?? 0
+  );
 }
 
 function QtyStepper({
@@ -86,7 +128,8 @@ export function PlaceModal({
   onSaved: () => void;
 }) {
   const [query, setQuery] = useState(lockedCard?.name ?? "");
-  const [selected, setSelected] = useState<SelectedItem[]>([]);
+  const [existing, setExisting] = useState<SelectedItem[]>([]);
+  const [incoming, setIncoming] = useState<SelectedItem[]>([]);
   const [boxId, setBoxId] = useState(defaultBoxId ?? boxes[0]?.id ?? "");
   const [row, setRow] = useState(defaultRow ?? 1);
   const [notes, setNotes] = useState("");
@@ -95,13 +138,19 @@ export function PlaceModal({
   const [series, setSeries] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
   const [rares, setRares] = useState<string[]>([]);
-  const selectedListRef = useRef<HTMLDivElement>(null);
-  const baselineRef = useRef(fingerprint([], ""));
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const incomingListRef = useRef<HTMLDivElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const baselineRef = useRef(fingerprint([], [], ""));
   const originalCountRef = useRef(0);
 
   const box = boxes.find((item) => item.id === boxId);
-  const selectedCount = selected.reduce((sum, item) => sum + item.quantity, 0);
-  const dirty = fingerprint(selected, notes) !== baselineRef.current;
+  const existingCount = existing.reduce((sum, item) => sum + item.quantity, 0);
+  const incomingCount = incoming.reduce((sum, item) => sum + item.quantity, 0);
+  const selectedCount = existingCount + incomingCount;
+  const dirty = fingerprint(existing, incoming, notes) !== baselineRef.current;
 
   const cardsByKey = useMemo(() => {
     const map = new Map<string, Card>();
@@ -131,18 +180,21 @@ export function PlaceModal({
       placementId: item.id,
     }));
     const rowNotes = rowPlacements[0]?.notes ?? "";
-    let items = original;
-    if (lockedCard) {
-      const key = cardKey(lockedCard.print, lockedCard.rare);
-      if (!original.some((item) => cardKey(item.card.print, item.card.rare) === key)) {
-        items = [{ card: lockedCard, quantity: 1 }, ...original];
-      }
-    }
-    setSelected(items);
+    setExisting(original);
+    setIncoming(
+      lockedCard &&
+        !original.some(
+          (item) =>
+            item.card.print === lockedCard.print && item.card.rare === lockedCard.rare,
+        )
+        ? [{ card: lockedCard, quantity: 1 }]
+        : [],
+    );
     setNotes(rowNotes);
     setError(null);
+    setScanMessage(null);
     originalCountRef.current = original.length;
-    baselineRef.current = fingerprint(original, rowNotes);
+    baselineRef.current = fingerprint(original, [], rowNotes);
   }, [boxId, row, lockedCard]);
 
   const seriesOptions = useMemo(() => {
@@ -179,46 +231,132 @@ export function PlaceModal({
   }, [cards, query, lockedCard, series, types, rares, hasFilters]);
 
   function qtyOf(card: Card) {
-    return (
-      selected.find(
-        (item) => item.card.print === card.print && item.card.rare === card.rare,
-      )?.quantity ?? 0
-    );
+    return qtyIn(incoming, card);
   }
 
   function addCard(card: Card) {
-    setSelected((current) => {
-      const index = current.findIndex(
-        (item) => item.card.print === card.print && item.card.rare === card.rare,
-      );
-      if (index < 0) return [{ card, quantity: 1 }, ...current];
-      const next = { ...current[index], quantity: current[index].quantity + 1 };
-      return [next, ...current.filter((_, i) => i !== index)];
-    });
-    const list = selectedListRef.current;
-    if (list) list.scrollTo({ left: 0, top: 0 });
+    setIncoming((current) => addToList(current, card, 1, false));
+    incomingListRef.current?.scrollTo({ left: 0, top: 0 });
   }
 
-  function bump(card: Card, delta: number) {
-    setSelected((current) =>
-      current.flatMap((item) => {
-        if (item.card.print !== card.print || item.card.rare !== card.rare) {
-          return [item];
-        }
-        const next = item.quantity + delta;
-        if (next < 1) return [];
-        return [{ ...item, quantity: next }];
-      }),
-    );
+  function bumpIncoming(card: Card, delta: number) {
+    setIncoming((current) => bumpList(current, card, delta));
   }
 
-  function removeCard(card: Card) {
-    setSelected((current) =>
+  function bumpExisting(card: Card, delta: number) {
+    setExisting((current) => bumpList(current, card, delta));
+  }
+
+  function removeIncoming(card: Card) {
+    setIncoming((current) =>
       current.filter(
         (item) => item.card.print !== card.print || item.card.rare !== card.rare,
       ),
     );
   }
+
+  function removeExisting(card: Card) {
+    setExisting((current) =>
+      current.filter(
+        (item) => item.card.print !== card.print || item.card.rare !== card.rare,
+      ),
+    );
+  }
+
+  function applyScan(
+    found: Array<{ print: string; rare: string; quantity: number }>,
+  ) {
+    setIncoming((current) => {
+      let next = current;
+      for (const item of found) {
+        const card = cardsByKey.get(cardKey(item.print, item.rare));
+        if (!card) continue;
+        next = addToList(next, card, item.quantity, true);
+      }
+      return next;
+    });
+    incomingListRef.current?.scrollTo({ left: 0, top: 0 });
+  }
+
+  async function onPickImage(file: File | undefined) {
+    if (!file) return;
+    setScanning(true);
+    setError(null);
+    setScanMessage(null);
+    try {
+      const image = await compressImageFile(file);
+      const res = await fetch("/api/scan-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image }),
+      });
+      const data = (await res.json()) as {
+        cards?: Array<{ print: string; rare: string; quantity: number }>;
+        unmatched?: string[];
+        error?: string;
+      };
+      throwIfApiError(res, data, "อ่านรูปไม่สำเร็จ");
+      const found = data.cards ?? [];
+      if (!found.length) {
+        throw new Error("อ่านการ์ดจากรูปไม่เจอ ลองถ่ายใกล้ ๆ ให้เห็นรหัสใบการ์ด");
+      }
+      applyScan(found);
+      const added = found.reduce((sum, item) => sum + item.quantity, 0);
+      const unmatched = data.unmatched ?? [];
+      setScanMessage(
+        unmatched.length
+          ? `อ่านได้ ${added} ใบจากรูป · อ่านไม่ออก ${unmatched.length} ใบ — แยกไว้ด้านบน ยังไม่ปนกับแถว`
+          : `อ่านได้ ${added} ใบจากรูป · แยกไว้ด้านบน ตรวจแล้วค่อยบันทึก`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "อ่านรูปไม่สำเร็จ");
+    } finally {
+      setScanning(false);
+      if (cameraInputRef.current) cameraInputRef.current.value = "";
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+    }
+  }
+
+  const scanInputs = (
+    <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => void onPickImage(event.target.files?.[0])}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => void onPickImage(event.target.files?.[0])}
+      />
+    </>
+  );
+
+  const scanButtons = !lockedCard && (
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <button
+        type="button"
+        disabled={scanning}
+        onClick={() => cameraInputRef.current?.click()}
+        className="h-10 shrink-0 rounded-full border-2 border-ink bg-white px-3 text-sm font-extrabold disabled:opacity-50 sm:h-11"
+      >
+        {scanning ? "กำลังอ่านรูป..." : "ถ่ายรูปให้ AI อ่าน"}
+      </button>
+      <button
+        type="button"
+        disabled={scanning}
+        onClick={() => galleryInputRef.current?.click()}
+        className="text-xs font-bold underline disabled:opacity-50"
+      >
+        เลือกจากคลัง
+      </button>
+    </div>
+  );
 
   async function save() {
     if (!boxId) {
@@ -226,12 +364,13 @@ export function PlaceModal({
       return;
     }
     if (!dirty) return;
-    if (!selected.length && originalCountRef.current === 0) {
+    if (!existing.length && !incoming.length && originalCountRef.current === 0) {
       setError("เลือกการ์ดก่อน");
       return;
     }
     if (
-      !selected.length &&
+      !existing.length &&
+      !incoming.length &&
       originalCountRef.current > 0 &&
       !confirm("ลบการ์ดทั้งหมดในแถวนี้?")
     ) {
@@ -246,6 +385,26 @@ export function PlaceModal({
     setSaving(true);
     setError(null);
     try {
+      const merged = new Map<string, { print: string; rare: string; quantity: number }>();
+      for (const item of existing) {
+        merged.set(cardKey(item.card.print, item.card.rare), {
+          print: item.card.print,
+          rare: item.card.rare,
+          quantity: item.quantity,
+        });
+      }
+      for (const item of incoming) {
+        const key = cardKey(item.card.print, item.card.rare);
+        const prev = merged.get(key);
+        if (prev) prev.quantity += item.quantity;
+        else {
+          merged.set(key, {
+            print: item.card.print,
+            rare: item.card.rare,
+            quantity: item.quantity,
+          });
+        }
+      }
       const res = await fetch("/api/inventory", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -253,11 +412,7 @@ export function PlaceModal({
           boxId,
           row,
           notes,
-          items: selected.map((item) => ({
-            print: item.card.print,
-            rare: item.card.rare,
-            quantity: item.quantity,
-          })),
+          items: [...merged.values()],
         }),
       });
       const data = await res.json();
@@ -339,105 +494,193 @@ export function PlaceModal({
     </label>
   );
 
+  function pickCard(
+    item: SelectedItem,
+    kind: "incoming" | "existing",
+    layout: "chip" | "row",
+  ) {
+    const scanned = kind === "incoming" && item.fromScan;
+    const onMinus = () =>
+      kind === "incoming" ? bumpIncoming(item.card, -1) : bumpExisting(item.card, -1);
+    const onPlus = () =>
+      kind === "incoming" ? bumpIncoming(item.card, 1) : bumpExisting(item.card, 1);
+    const onRemove = () =>
+      kind === "incoming" ? removeIncoming(item.card) : removeExisting(item.card);
+    const border =
+      kind === "incoming"
+        ? scanned
+          ? "border-gold bg-gold/15"
+          : "border-bot-red bg-white"
+        : "border-ink/30 bg-white";
+
+    if (layout === "chip") {
+      return (
+        <div
+          key={`${kind}-${cardKey(item.card.print, item.card.rare)}`}
+          className={`flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border-2 p-1 ${border}`}
+        >
+          <div className="relative w-12 overflow-hidden rounded-md border border-ink">
+            <CardImage
+              print={item.card.print}
+              rare={item.card.rare}
+              name={item.card.name}
+            />
+          </div>
+          <p className="w-full truncate text-center text-[11px] font-extrabold">
+            {item.card.name}
+          </p>
+          <span className="text-[10px] font-bold text-bot-red">
+            {kind === "existing" ? "ในแถวแล้ว" : scanned ? "จากรูป" : "จะเพิ่ม"}
+          </span>
+          <QtyStepper value={item.quantity} onMinus={onMinus} onPlus={onPlus} />
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-[11px] font-bold text-muted underline"
+          >
+            เอาออก
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={`${kind}-${cardKey(item.card.print, item.card.rare)}`}
+        className={`flex items-center gap-2 rounded-xl border-2 p-2 ${border}`}
+      >
+        <div className="w-14 shrink-0 overflow-hidden rounded-md border border-ink">
+          <CardImage
+            print={item.card.print}
+            rare={item.card.rare}
+            name={item.card.name}
+          />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-extrabold">{item.card.name}</p>
+          <p className="text-xs text-muted">{item.card.print}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <RarityBadge rare={item.card.rare} compact />
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[10px] font-black ${
+                kind === "existing"
+                  ? "bg-ink/10 text-ink"
+                  : scanned
+                    ? "bg-gold text-ink"
+                    : "bg-bot-red text-white"
+              }`}
+            >
+              {kind === "existing" ? "ในแถวแล้ว" : scanned ? "จากรูป" : "จะเพิ่ม"}
+            </span>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <QtyStepper value={item.quantity} onMinus={onMinus} onPlus={onPlus} />
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-xs font-bold text-muted underline hover:text-bot-red"
+          >
+            เอาออก
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const selectedList = (
     <>
-      {selected.length > 0 && (
-        <div
-          ref={selectedListRef}
-          className="flex min-w-0 w-full max-w-full flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1 md:hidden"
-        >
-          {selected.map((item) => (
-            <div
-              key={cardKey(item.card.print, item.card.rare)}
-              className="flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border-2 border-ink bg-white p-1"
-            >
-              <div className="relative w-12 overflow-hidden rounded-md border border-ink">
-                <CardImage
-                  print={item.card.print}
-                  rare={item.card.rare}
-                  name={item.card.name}
-                />
-              </div>
-              <p className="w-full truncate text-center text-[11px] font-extrabold">
-                {item.card.name}
+      <div className="space-y-2 md:hidden">
+        {incoming.length > 0 && (
+          <div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-xs font-bold">
+                จะเพิ่ม {incomingCount} ใบ
+                {incoming.some((item) => item.fromScan) ? " · จากรูป" : ""}
               </p>
-              {!item.placementId && (
-                <span className="text-[10px] font-bold text-bot-red">ใหม่</span>
-              )}
-              <QtyStepper
-                value={item.quantity}
-                onMinus={() => bump(item.card, -1)}
-                onPlus={() => bump(item.card, 1)}
-              />
               <button
                 type="button"
-                onClick={() => removeCard(item.card)}
-                className="text-[11px] font-bold text-muted underline"
+                onClick={() => {
+                  setIncoming([]);
+                  setScanMessage(null);
+                }}
+                className="text-[11px] font-bold underline"
               >
-                เอาออก
+                ล้าง
               </button>
             </div>
-          ))}
-        </div>
-      )}
-      <div className="hidden min-h-0 flex-1 flex-col space-y-2 overflow-y-auto md:flex">
-        {selected.length === 0 ? (
-          <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
-            แถวนี้ยังไม่มีการ์ด — กดจากแคตตาล็อกเพื่อเพิ่ม
-          </p>
-        ) : (
-          selected.map((item) => (
             <div
-              key={cardKey(item.card.print, item.card.rare)}
-              className="flex items-center gap-2 rounded-xl border-2 border-ink bg-white p-2"
+              ref={incomingListRef}
+              className="flex min-w-0 w-full max-w-full flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1"
             >
-              <div className="w-14 shrink-0 overflow-hidden rounded-md border border-ink">
-                <CardImage
-                  print={item.card.print}
-                  rare={item.card.rare}
-                  name={item.card.name}
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-extrabold">{item.card.name}</p>
-                <p className="text-xs text-muted">{item.card.print}</p>
-                <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <RarityBadge rare={item.card.rare} compact />
-                  {!item.placementId && (
-                    <span className="rounded-full bg-bot-red px-1.5 py-0.5 text-[10px] font-black text-white">
-                      ใหม่
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <QtyStepper
-                  value={item.quantity}
-                  onMinus={() => bump(item.card, -1)}
-                  onPlus={() => bump(item.card, 1)}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeCard(item.card)}
-                  className="text-xs font-bold text-muted underline hover:text-bot-red"
-                >
-                  เอาออก
-                </button>
-              </div>
+              {incoming.map((item) => pickCard(item, "incoming", "chip"))}
             </div>
-          ))
+          </div>
         )}
+        {existing.length > 0 && (
+          <div>
+            <p className="mb-1 text-xs font-bold text-muted">
+              ที่มีในแถวนี้แล้ว {existingCount} ใบ
+            </p>
+            <div className="flex min-w-0 w-full max-w-full flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1">
+              {existing.map((item) => pickCard(item, "existing", "chip"))}
+            </div>
+          </div>
+        )}
+        {incoming.length === 0 && existing.length === 0 && (
+          <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-6 text-center text-xs font-medium text-muted">
+            กดจากแคตตาล็อกหรือถ่ายรูปเพื่อเพิ่ม
+          </p>
+        )}
+      </div>
+      <div className="hidden min-h-0 flex-1 flex-col gap-3 overflow-y-auto md:flex">
+        {incoming.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-bold">
+                จะเพิ่ม {incoming.length} แบบ · {incomingCount} ใบ
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setIncoming([]);
+                  setScanMessage(null);
+                }}
+                className="text-xs font-bold underline"
+              >
+                ล้างที่จะเพิ่ม
+              </button>
+            </div>
+            {incoming.map((item) => pickCard(item, "incoming", "row"))}
+          </div>
+        )}
+        <div className="space-y-2">
+          <p className="text-sm font-bold text-muted">
+            {existing.length
+              ? `ที่มีในแถวนี้แล้ว ${existing.length} แบบ · ${existingCount} ใบ`
+              : "แถวนี้ยังไม่มีการ์ด"}
+          </p>
+          {existing.length === 0 && incoming.length === 0 ? (
+            <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
+              กดจากแคตตาล็อกหรือถ่ายรูปเพื่อเพิ่ม
+            </p>
+          ) : (
+            existing.map((item) => pickCard(item, "existing", "row"))
+          )}
+        </div>
       </div>
     </>
   );
 
   const saveLabel = saving
     ? "กำลังบันทึก..."
-    : !selected.length && originalCountRef.current > 0
+    : !existing.length && !incoming.length && originalCountRef.current > 0
       ? "ลบการ์ดทั้งหมดในแถวนี้"
-      : selectedCount > 0
-        ? `บันทึกแถวนี้ · ${selectedCount} ใบ`
-        : "บันทึกแถวนี้";
+      : incomingCount > 0
+        ? `เพิ่ม ${incomingCount} ใบลงแถวนี้`
+        : selectedCount > 0
+          ? `บันทึกแถวนี้ · ${selectedCount} ใบ`
+          : "บันทึกแถวนี้";
 
   return (
     <div
@@ -445,15 +688,23 @@ export function PlaceModal({
       onClick={onClose}
     >
       <div
-        className="flex h-svh max-h-svh w-full max-w-6xl flex-col overflow-hidden border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:max-h-none md:rounded-3xl"
+        className="relative flex h-svh max-h-svh w-full max-w-6xl flex-col overflow-hidden border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:max-h-none md:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
+        {scanInputs}
+        {scanning && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-cream/80 text-center">
+            <p className="rounded-2xl border-4 border-ink bg-white px-5 py-4 text-lg font-black">
+              กำลังอ่านการ์ดจากรูป...
+            </p>
+          </div>
+        )}
         <div className="flex shrink-0 items-start justify-between gap-3 border-b-4 border-ink px-3 py-2 sm:px-5 sm:py-3">
           <div>
             <h2 className="text-xl font-extrabold">ใส่การ์ดลงแถว</h2>
             {!lockedCard && (
               <p className="mt-0.5 hidden text-sm text-muted sm:block">
-                แก้จำนวนในแถวนี้ได้เลย กดการ์ดซ้ำเพื่อเพิ่ม
+                แก้จำนวนในแถวนี้ได้เลย ถ่ายรูปให้ AI เติม แล้วตรวจก่อนบันทึก
               </p>
             )}
           </div>
@@ -469,18 +720,15 @@ export function PlaceModal({
         {lockedCard ? (
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4 sm:p-5">
             {locationFields}
-            <p className="text-sm font-bold">
-              {selected.length
-                ? `ในแถวนี้ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
-                : "แถวนี้ยังไม่มีการ์ด"}
-            </p>
+            {scanButtons}
+            {scanMessage && <p className="text-xs font-bold text-bot-red">{scanMessage}</p>}
             {selectedList}
             {notesField}
             {error && <p className="text-sm font-bold text-bot-red">{error}</p>}
             <button
               type="button"
               onClick={() => void save()}
-              disabled={saving || !dirty || !boxId}
+              disabled={saving || scanning || !dirty || !boxId}
               className="w-full rounded-full border-2 border-ink bg-ink py-3 font-extrabold text-cream disabled:opacity-50"
             >
               {saveLabel}
@@ -615,12 +863,13 @@ export function PlaceModal({
             </section>
 
             <section className="flex min-w-0 shrink-0 flex-col gap-2 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 md:min-h-0 md:flex-1 md:gap-3 md:pb-4">
-              <div className="shrink-0 space-y-2">{locationFields}</div>
-              <p className="shrink-0 text-sm font-bold">
-                {selected.length
-                  ? `ในแถวนี้ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
-                  : "แถวนี้ยังไม่มีการ์ด"}
-              </p>
+              <div className="shrink-0 space-y-2">
+                {locationFields}
+                {scanButtons}
+              </div>
+              {scanMessage && (
+                <p className="shrink-0 text-xs font-bold text-bot-red">{scanMessage}</p>
+              )}
               {selectedList}
               <div className="shrink-0 space-y-2 border-t-2 border-ink/15 pt-2 md:space-y-3 md:pt-3">
                 {notesField}
@@ -628,7 +877,7 @@ export function PlaceModal({
                 <button
                   type="button"
                   onClick={() => void save()}
-                  disabled={saving || !dirty || !boxId}
+                  disabled={saving || scanning || !dirty || !boxId}
                   className="w-full rounded-full border-2 border-ink bg-ink py-2.5 text-sm font-extrabold text-cream disabled:opacity-50 sm:py-3 sm:text-base"
                 >
                   {saveLabel}

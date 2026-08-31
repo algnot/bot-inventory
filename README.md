@@ -40,6 +40,12 @@ SUPABASE_SERVICE_ROLE_KEY=sb_secret_...
 
 ถ้ายังไม่ใส่คีย์ แอปจะใช้ `data/store.json` ในเครื่องเหมือนเดิม หน้าแรกจะขึ้นว่า **คลาวด์ Supabase** เมื่อต่อสำเร็จ
 
+## อ่านการ์ดจากรูป
+
+ในหน้าใส่การ์ดลงแถว กด **ถ่ายรูปให้ AI อ่าน** แล้วตรวจรายการด้านขวาก่อนกดบันทึก
+
+ใส่ `OPENAI_API_KEY` ใน `.env.local` แล้วรีสตาร์ท `npm run dev` (ถ้าอยากให้อ่านรหัสใบการ์ดแม่นขึ้น ตั้ง `OPENAI_VISION_MODEL=gpt-4o`)
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
