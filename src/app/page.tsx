@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
+import { Pagination } from "@/components/pagination";
 import { PlaceModal } from "@/components/place-modal";
 import { RarityBadge } from "@/components/rarity-badge";
 import { locationLabel } from "@/lib/labels";
@@ -11,13 +12,20 @@ import { useAppState } from "@/lib/use-app-state";
 import { catalogVersion, loadCatalogClient } from "@/lib/catalog-client";
 import type { Card, LocatedCard } from "@/lib/types";
 
+const PAGE_SIZE = 20;
+
 export default function HomePage() {
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const { state, loading, reload, error } = useAppState(query);
   const [detail, setDetail] = useState<LocatedCard | null>(null);
   const [placeOpen, setPlaceOpen] = useState(false);
   const [placeCard, setPlaceCard] = useState<Card | null>(null);
   const [catalog, setCatalog] = useState<Card[]>([]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query]);
 
   async function ensureCatalog() {
     if (catalog.length) return catalog;
@@ -36,6 +44,12 @@ export default function HomePage() {
 
   const ownedCount =
     state?.placements.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+  const located = state?.located ?? [];
+  const totalPages = Math.max(1, Math.ceil(located.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = located.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const from = located.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const to = Math.min(currentPage * PAGE_SIZE, located.length);
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">
@@ -88,7 +102,12 @@ export default function HomePage() {
       )}
 
       <div className="mt-6 grid gap-3">
-        {(state?.located ?? []).map((item) => (
+        {located.length > 0 && (
+          <p className="text-sm font-semibold text-muted">
+            แสดง {from}–{to} จาก {located.length} รายการ
+          </p>
+        )}
+        {paged.map((item) => (
           <button
             type="button"
             key={item.id}
@@ -129,6 +148,19 @@ export default function HomePage() {
           </button>
         ))}
       </div>
+
+      {located.length > 0 && (
+        <div className="mt-6">
+          <Pagination
+            page={currentPage}
+            totalPages={totalPages}
+            onChange={(next) => {
+              setPage(next);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          />
+        </div>
+      )}
 
       {state && query && state.located.length === 0 && (
         <p className="mt-6 text-center font-medium text-muted">
