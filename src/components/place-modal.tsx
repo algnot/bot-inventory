@@ -31,16 +31,16 @@ function QtyStepper({
       <button
         type="button"
         onClick={onMinus}
-        className="flex h-10 w-10 items-center justify-center text-lg font-black hover:bg-ink hover:text-cream"
+        className="flex h-9 w-9 items-center justify-center text-lg font-black hover:bg-ink hover:text-cream sm:h-10 sm:w-10"
         aria-label="ลดจำนวน"
       >
         −
       </button>
-      <span className="min-w-8 text-center text-sm font-black tabular-nums">{value}</span>
+      <span className="min-w-7 text-center text-sm font-black tabular-nums sm:min-w-8">{value}</span>
       <button
         type="button"
         onClick={onPlus}
-        className="flex h-10 w-10 items-center justify-center text-lg font-black hover:bg-ink hover:text-cream"
+        className="flex h-9 w-9 items-center justify-center text-lg font-black hover:bg-ink hover:text-cream sm:h-10 sm:w-10"
         aria-label="เพิ่มจำนวน"
       >
         +
@@ -217,7 +217,7 @@ export function PlaceModal({
           ยังไม่มีกล่อง — ไปหน้ากล่องเพื่อสร้างก่อน
         </p>
       ) : (
-        <div className="grid gap-2 sm:grid-cols-[1fr_7rem]">
+        <div className="grid grid-cols-[1fr_5.5rem] gap-2">
           <label className="text-sm font-bold">
             กล่อง
             <select
@@ -226,7 +226,7 @@ export function PlaceModal({
                 setBoxId(event.target.value);
                 setRow(1);
               }}
-              className="mt-1 h-11 w-full rounded-xl border-2 border-ink bg-white px-3"
+              className="mt-1 h-10 w-full rounded-xl border-2 border-ink bg-white px-2 sm:h-11 sm:px-3"
             >
               {boxes.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -244,7 +244,7 @@ export function PlaceModal({
             <select
               value={row}
               onChange={(event) => setRow(Number(event.target.value))}
-              className="mt-1 h-11 w-full rounded-xl border-2 border-ink bg-white px-3"
+              className="mt-1 h-10 w-full rounded-xl border-2 border-ink bg-white px-2 sm:h-11 sm:px-3"
             >
               {Array.from({ length: box?.rows ?? 1 }, (_, i) => i + 1).map((n) => (
                 <option key={n} value={n}>
@@ -253,12 +253,12 @@ export function PlaceModal({
               ))}
             </select>
           </label>
-          <label className="text-sm font-bold sm:col-span-2">
+          <label className="col-span-2 text-sm font-bold">
             หมายเหตุ
             <input
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
-              className="mt-1 h-11 w-full rounded-xl border-2 border-ink bg-white px-3"
+              className="mt-1 h-10 w-full rounded-xl border-2 border-ink bg-white px-3 sm:h-11"
             />
           </label>
         </div>
@@ -276,9 +276,9 @@ export function PlaceModal({
   );
 
   const selectedList = (
-    <div ref={selectedListRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+    <div ref={selectedListRef} className="max-h-36 min-h-0 space-y-2 overflow-y-auto md:max-h-none md:min-h-0 md:flex-1">
       {selected.length === 0 ? (
-        <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
+        <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-3 text-center text-sm font-medium text-muted md:py-8">
           กดการ์ดจากแคตตาล็อกเพื่อเพิ่มจำนวน
         </p>
       ) : (
@@ -325,19 +325,19 @@ export function PlaceModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/70 md:items-center md:p-4"
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-ink/70 md:items-center md:p-4"
       onClick={onClose}
     >
       <div
-        className="flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-t-3xl border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:rounded-3xl"
+        className="flex h-dvh w-full max-w-6xl flex-col overflow-hidden border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b-4 border-ink px-4 py-3 sm:px-5">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b-4 border-ink px-3 py-2 sm:px-5 sm:py-3">
           <div>
             <h2 className="text-xl font-extrabold">ใส่การ์ดลงแถว</h2>
             {!lockedCard && (
-              <p className="mt-0.5 text-sm text-muted">
-                กดเพิ่มการ์ดและบันทึก
+              <p className="mt-0.5 hidden text-sm text-muted sm:block">
+                กดการ์ดซ้ำเพื่อเพิ่มจำนวน แล้วบันทึกครั้งเดียว
               </p>
             )}
           </div>
@@ -365,16 +365,16 @@ export function PlaceModal({
             </button>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1.1fr)] md:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.9fr)] md:grid-rows-1">
-            <section className="flex min-h-0 flex-col overflow-visible border-b-4 border-ink p-3 sm:p-4 md:border-r-4 md:border-b-0">
+          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.9fr)] md:grid-rows-1">
+            <section className="flex min-h-0 flex-col border-b-4 border-ink p-3 sm:p-4 md:border-r-4 md:border-b-0">
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="ค้นหาชื่อการ์ด หรือรหัสเช่น BT01-001"
-                className="h-11 w-full shrink-0 rounded-xl border-2 border-ink bg-white px-3 outline-none focus:ring-2 focus:ring-ink/30"
+                className="h-10 w-full shrink-0 rounded-xl border-2 border-ink bg-white px-3 outline-none focus:ring-2 focus:ring-ink/30 sm:h-11"
               />
               <div className="relative z-20 mt-2 shrink-0 space-y-2">
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                   <MultiFilter
                     label="ซีรีส์"
                     allLabel="ทุกซีรีส์"
@@ -382,6 +382,7 @@ export function PlaceModal({
                     selected={series}
                     onChange={setSeries}
                     searchable
+                    compact
                   />
                   <MultiFilter
                     label="ประเภท"
@@ -389,6 +390,7 @@ export function PlaceModal({
                     options={typeOptions}
                     selected={types}
                     onChange={setTypes}
+                    compact
                   />
                   <MultiFilter
                     label="ความหายาก"
@@ -396,13 +398,15 @@ export function PlaceModal({
                     options={rareOptions}
                     selected={rares}
                     onChange={setRares}
+                    compact
+                    menuAlign="end"
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-xs font-semibold text-muted">
                     {query.trim() || hasFilters
                       ? `พบ ${results.length} ใบ`
-                      : `แสดง ${results.length} ใบแรก · ค้นหรือกรองเพื่อหาใบอื่น`}
+                      : <>แสดง {results.length} ใบแรก<span className="hidden sm:inline"> · ค้นหรือกรองเพื่อหาใบอื่น</span></>}
                   </p>
                   {hasFilters && (
                     <button
@@ -488,21 +492,21 @@ export function PlaceModal({
               </div>
             </section>
 
-            <section className="flex min-h-0 flex-col gap-3 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4 md:pb-4">
+            <section className="flex max-h-[42%] min-h-0 shrink-0 flex-col gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4 md:max-h-none md:flex-1 md:gap-3 md:pb-4">
               <p className="shrink-0 text-sm font-bold">
                 {selected.length
                   ? `จะใส่ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
                   : "รายการที่จะใส่ลงแถว"}
               </p>
               {selectedList}
-              <div className="shrink-0 space-y-3 border-t-2 border-ink/15 pt-3">
+              <div className="shrink-0 space-y-2 border-t-2 border-ink/15 pt-2 md:space-y-3 md:pt-3">
                 {locationFields}
                 {error && <p className="text-sm font-bold text-bot-red">{error}</p>}
                 <button
                   type="button"
                   onClick={() => void save()}
                   disabled={saving || selected.length === 0 || !boxId}
-                  className="w-full rounded-full border-2 border-ink bg-ink py-3 font-extrabold text-cream disabled:opacity-50"
+                  className="w-full rounded-full border-2 border-ink bg-ink py-2.5 text-sm font-extrabold text-cream disabled:opacity-50 sm:py-3 sm:text-base"
                 >
                   {saving
                     ? "กำลังบันทึก..."

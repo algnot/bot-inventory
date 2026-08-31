@@ -14,6 +14,8 @@ export function MultiFilter({
   selected,
   onChange,
   searchable = false,
+  compact = false,
+  menuAlign = "start",
 }: {
   label: string;
   allLabel: string;
@@ -21,6 +23,8 @@ export function MultiFilter({
   selected: string[];
   onChange: (next: string[]) => void;
   searchable?: boolean;
+  compact?: boolean;
+  menuAlign?: "start" | "end";
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -69,8 +73,8 @@ export function MultiFilter({
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
-        className={`flex h-12 w-full items-center justify-between gap-2 rounded-xl border-2 bg-white px-3 text-left font-semibold ${
-          selected.length > 0 ? "border-ink" : "border-ink"
+        className={`flex w-full items-center justify-between gap-1 rounded-xl border-2 border-ink bg-white px-2 text-left font-semibold sm:gap-2 sm:px-3 ${
+          compact ? "h-10 text-xs sm:text-sm" : "h-12"
         }`}
       >
         <span className="min-w-0 truncate">{summary}</span>
@@ -98,7 +102,13 @@ export function MultiFilter({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border-2 border-ink bg-cream">
+        <div
+          className={`absolute z-50 mt-2 overflow-hidden rounded-2xl border-2 border-ink bg-cream ${
+            compact
+              ? `${menuAlign === "end" ? "right-0" : "left-0"} w-max min-w-full max-w-[min(18rem,calc(100vw-1.5rem))]`
+              : "w-full"
+          }`}
+        >
           {searchable && (
             <div className="border-b-2 border-ink p-2">
               <input
