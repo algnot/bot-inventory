@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { throwIfApiError } from "@/lib/lock-client";
-import { personName } from "@/lib/labels";
+import { boxKindLabel, personName } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
 
 export default function BoxesPage() {
@@ -157,8 +157,8 @@ export default function BoxesPage() {
                   </div>
                   <p className="mt-1 text-sm text-muted">
                     {personName(people, box.ownerId)
-                      ? `ของ${personName(people, box.ownerId)} · ${box.rows} แถว`
-                      : `${box.rows} แถว`}
+                      ? `ของ${personName(people, box.ownerId)} · ${boxKindLabel(box.rows)}`
+                      : boxKindLabel(box.rows)}
                   </p>
                   {box.notes ? (
                     <p className="mt-1 truncate text-sm text-muted">{box.notes}</p>

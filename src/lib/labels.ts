@@ -5,6 +5,10 @@ export function locationLabel(boxName: string, row: number, ownerName?: string |
   return `${boxName} · แถว ${row}`;
 }
 
+export function boxKindLabel(rows: number) {
+  return rows === 1 ? "เคสเด็ค" : `${rows} แถว`;
+}
+
 export function personName(people: Person[], ownerId: string | null | undefined) {
   if (!ownerId) return null;
   return people.find((person) => person.id === ownerId)?.name ?? null;

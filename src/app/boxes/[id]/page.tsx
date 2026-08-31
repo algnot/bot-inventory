@@ -7,6 +7,7 @@ import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
 import { BoxPinButton, ReadOnlyBanner } from "@/components/lock-button";
 import { PlaceModal } from "@/components/place-modal";
+import { DeckCaseView } from "@/components/deck-case";
 import { cardKey } from "@/lib/types";
 import type { Card, LocatedCard, Placement } from "@/lib/types";
 import { canEditBox, requestUnlock, throwIfApiError } from "@/lib/lock-client";
@@ -132,9 +133,14 @@ export default function BoxDetailPage() {
         <div className="min-w-0">
           <h1 className="text-2xl font-black sm:text-3xl">{box.name}</h1>
           <p className="text-muted">
-            {personName(state.people, box.ownerId)
-              ? `ของ${personName(state.people, box.ownerId)} · ${box.rows} แถว`
-              : `${box.rows} แถว แบบรางยาว`}
+            {[
+              personName(state.people, box.ownerId)
+                ? `ของ${personName(state.people, box.ownerId)}`
+                : null,
+              box.rows === 1 ? "เคสเด็ค" : `${box.rows} แถว แบบรางยาว`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -202,6 +208,9 @@ export default function BoxDetailPage() {
             onChange={(event) => setRows(Number(event.target.value))}
             className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
           />
+          <span className="mt-1 block text-xs font-medium text-muted">
+            ใส่ 1 ถ้าเป็นเคสเด็ค
+          </span>
         </label>
         <label className="block text-sm font-bold sm:col-span-2 md:col-span-3">
           หมายเหตุ
@@ -226,6 +235,31 @@ export default function BoxDetailPage() {
       </form>
       )}
 
+      {box.rows === 1 ? (
+        <DeckCaseView
+          entries={(byRow.get(1) ?? []).map((item) => ({
+            placement: item,
+            card: cardsByKey.get(cardKey(item.print, item.rare)),
+          }))}
+          editable={editable}
+          onAdd={() => {
+            if (!editable) {
+              requestUnlock(box.id, box.name);
+              return;
+            }
+            setPlaceRow(1);
+          }}
+          onOpen={(entry) => {
+            if (!entry.card) return;
+            setDetail({
+              ...entry.placement,
+              card: entry.card,
+              box,
+              ownerName: personName(state.people, box.ownerId),
+            });
+          }}
+        />
+      ) : (
       <div className="mt-6 space-y-4">
         {Array.from({ length: box.rows }, (_, rowIdx) => {
           const row = rowIdx + 1;
@@ -286,6 +320,7 @@ export default function BoxDetailPage() {
           );
         })}
       </div>
+      )}
 
       {placeRow !== null && (
         <PlaceModal
