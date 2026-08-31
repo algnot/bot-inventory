@@ -6,6 +6,7 @@ import { CardModal } from "@/components/card-modal";
 import { MultiFilter } from "@/components/multi-filter";
 import { Pagination } from "@/components/pagination";
 import { PlaceModal } from "@/components/place-modal";
+import { MoveModal, type MoveItem } from "@/components/move-modal";
 import { RarityBadge } from "@/components/rarity-badge";
 import { searchCards } from "@/lib/catalog-search";
 import { displayRare } from "@/lib/image";
@@ -25,6 +26,7 @@ export default function CatalogPage() {
   const [rares, setRares] = useState<string[]>([]);
   const [selected, setSelected] = useState<Card | null>(null);
   const [placeCard, setPlaceCard] = useState<Card | null>(null);
+  const [moveItems, setMoveItems] = useState<MoveItem[] | null>(null);
   const [page, setPage] = useState(1);
 
   const seriesOptions = useMemo(() => {
@@ -237,6 +239,30 @@ export default function CatalogPage() {
             setSelected(null);
             setPlaceCard(card);
           }}
+          onMove={(item) => {
+            setSelected(null);
+            setMoveItems([
+              {
+                id: item.id,
+                name: item.card.name,
+                print: item.print,
+                quantity: item.quantity,
+                boxId: item.boxId,
+                boxName: item.box.name,
+              },
+            ]);
+          }}
+        />
+      )}
+
+      {moveItems && (
+        <MoveModal
+          boxes={state?.boxes ?? []}
+          people={state?.people ?? []}
+          unlockedBoxIds={state?.unlockedBoxIds ?? []}
+          items={moveItems}
+          onClose={() => setMoveItems(null)}
+          onMoved={() => void reload()}
         />
       )}
 

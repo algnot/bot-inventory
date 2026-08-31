@@ -356,6 +356,68 @@ export function updatePlacement(
   });
 }
 
+export function movePlacements(input: {
+  boxId: string;
+  row: number;
+  items: Array<{ id: string; quantity?: number }>;
+}) {
+  return updateStore((data) => {
+    if (!input.items.length) throw new Error("เลือกการ์ดก่อน");
+    const dest = data.boxes.find((item) => item.id === input.boxId);
+    if (!dest) throw new Error("ไม่พบกล่องปลายทาง");
+    if (input.row < 1 || input.row > dest.rows) throw new Error("แถวไม่ถูกต้อง");
+
+    const seen = new Set<string>();
+    for (const entry of input.items) {
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      const item = data.placements.find((placement) => placement.id === entry.id);
+      if (!item) throw new Error("ไม่พบการ์ดในแถวนี้");
+      const moving =
+        entry.quantity === undefined
+          ? item.quantity
+          : Math.max(1, Math.min(item.quantity, Math.floor(entry.quantity)));
+      if (item.boxId === input.boxId && item.row === input.row) continue;
+
+      const clash = data.placements.find(
+        (other) =>
+          other.id !== item.id &&
+          other.boxId === input.boxId &&
+          other.row === input.row &&
+          other.print === item.print &&
+          other.rare === item.rare,
+      );
+
+      if (moving >= item.quantity) {
+        if (clash) {
+          clash.quantity += item.quantity;
+          data.placements = data.placements.filter((placement) => placement.id !== item.id);
+        } else {
+          item.boxId = input.boxId;
+          item.row = input.row;
+        }
+        continue;
+      }
+
+      item.quantity -= moving;
+      if (clash) {
+        clash.quantity += moving;
+      } else {
+        data.placements.push({
+          id: crypto.randomUUID(),
+          boxId: input.boxId,
+          row: input.row,
+          print: item.print,
+          rare: item.rare,
+          quantity: moving,
+          notes: item.notes,
+          addedAt: new Date().toISOString(),
+        });
+      }
+    }
+  });
+}
+
 export function deletePlacement(id: string) {
   return updateStore((data) => {
     data.placements = data.placements.filter((item) => item.id !== id);

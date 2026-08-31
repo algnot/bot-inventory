@@ -6,6 +6,7 @@ import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
 import { Pagination } from "@/components/pagination";
 import { PlaceModal } from "@/components/place-modal";
+import { MoveModal, type MoveItem } from "@/components/move-modal";
 import { RarityBadge } from "@/components/rarity-badge";
 import { locationLabel } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
@@ -22,6 +23,7 @@ export default function HomePage() {
   const [placeOpen, setPlaceOpen] = useState(false);
   const [placeCard, setPlaceCard] = useState<Card | null>(null);
   const [catalog, setCatalog] = useState<Card[]>([]);
+  const [moveItems, setMoveItems] = useState<MoveItem[] | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -178,6 +180,30 @@ export default function HomePage() {
             setDetail(null);
             void openPlace(card);
           }}
+          onMove={(item) => {
+            setDetail(null);
+            setMoveItems([
+              {
+                id: item.id,
+                name: item.card.name,
+                print: item.print,
+                quantity: item.quantity,
+                boxId: item.boxId,
+                boxName: item.box.name,
+              },
+            ]);
+          }}
+        />
+      )}
+
+      {moveItems && (
+        <MoveModal
+          boxes={state?.boxes ?? []}
+          people={state?.people ?? []}
+          unlockedBoxIds={state?.unlockedBoxIds ?? []}
+          items={moveItems}
+          onClose={() => setMoveItems(null)}
+          onMoved={() => void reload()}
         />
       )}
 

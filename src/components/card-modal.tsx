@@ -24,12 +24,14 @@ export function CardModal({
   onClose,
   onPlace,
   onRemove,
+  onMove,
 }: {
   card: Card;
   locations?: LocatedCard[];
   onClose: () => void;
   onPlace?: (card: Card) => void;
   onRemove?: () => void;
+  onMove?: (item: LocatedCard) => void;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -170,9 +172,23 @@ export function CardModal({
                 <h3 className="mb-2 text-xs font-bold tracking-wide text-muted">อยู่ในกล่องของเรา</h3>
                 <ul className="space-y-1">
                   {locations.map((item) => (
-                    <li key={item.id} className="rounded-lg border-2 border-ink bg-white px-3 py-2 text-sm font-semibold">
-                      {locationLabel(item.box.name, item.row, item.ownerName)}
-                      {item.quantity > 1 ? ` · ×${item.quantity}` : ""}
+                    <li
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 rounded-lg border-2 border-ink bg-white px-3 py-2 text-sm font-semibold"
+                    >
+                      <span>
+                        {locationLabel(item.box.name, item.row, item.ownerName)}
+                        {item.quantity > 1 ? ` · ×${item.quantity}` : ""}
+                      </span>
+                      {onMove && locations.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => onMove(item)}
+                          className="shrink-0 text-xs font-extrabold underline"
+                        >
+                          ย้าย
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -186,6 +202,15 @@ export function CardModal({
                 className="mt-5 w-full rounded-full border-2 border-ink bg-ink py-3 font-extrabold text-cream hover:bg-bot-red"
               >
                 ใส่เข้ากล่อง
+              </button>
+            )}
+            {onMove && locations.length === 1 && (
+              <button
+                type="button"
+                onClick={() => onMove(locations[0])}
+                className="mt-3 w-full rounded-full border-2 border-ink bg-white py-3 font-extrabold hover:bg-gold"
+              >
+                ย้ายไปกล่องอื่น
               </button>
             )}
             {onRemove && (

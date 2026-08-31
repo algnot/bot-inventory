@@ -443,6 +443,101 @@ export async function updatePlacement(
   return loadStore();
 }
 
+export async function movePlacements(input: {
+  boxId: string;
+  row: number;
+  items: Array<{ id: string; quantity?: number }>;
+}) {
+  if (!input.items.length) throw new Error("เลือกการ์ดก่อน");
+  const supabase = getSupabase();
+  const { data: dest, error: boxError } = await supabase
+    .from("boxes")
+    .select("id, rows")
+    .eq("id", input.boxId)
+    .maybeSingle();
+  if (boxError) fail(boxError);
+  if (!dest) throw new Error("ไม่พบกล่องปลายทาง");
+  if (input.row < 1 || input.row > dest.rows) throw new Error("แถวไม่ถูกต้อง");
+
+  const seen = new Set<string>();
+  for (const entry of input.items) {
+    if (seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    const { data: item, error: loadError } = await supabase
+      .from("placements")
+      .select("*")
+      .eq("id", entry.id)
+      .maybeSingle();
+    if (loadError) fail(loadError);
+    if (!item) throw new Error("ไม่พบการ์ดในแถวนี้");
+
+    const moving =
+      entry.quantity === undefined
+        ? item.quantity
+        : Math.max(1, Math.min(item.quantity, Math.floor(entry.quantity)));
+    if (item.box_id === input.boxId && item.row === input.row) continue;
+
+    const { data: clash, error: clashError } = await supabase
+      .from("placements")
+      .select("*")
+      .neq("id", item.id)
+      .eq("box_id", input.boxId)
+      .eq("row", input.row)
+      .eq("print", item.print)
+      .eq("rare", item.rare)
+      .maybeSingle();
+    if (clashError) fail(clashError);
+
+    if (moving >= item.quantity) {
+      if (clash) {
+        const { error: mergeError } = await supabase
+          .from("placements")
+          .update({ quantity: clash.quantity + item.quantity })
+          .eq("id", clash.id);
+        if (mergeError) fail(mergeError);
+        const { error: deleteError } = await supabase
+          .from("placements")
+          .delete()
+          .eq("id", item.id);
+        if (deleteError) fail(deleteError);
+      } else {
+        const { error: updateError } = await supabase
+          .from("placements")
+          .update({ box_id: input.boxId, row: input.row })
+          .eq("id", item.id);
+        if (updateError) fail(updateError);
+      }
+      continue;
+    }
+
+    const { error: shrinkError } = await supabase
+      .from("placements")
+      .update({ quantity: item.quantity - moving })
+      .eq("id", item.id);
+    if (shrinkError) fail(shrinkError);
+
+    if (clash) {
+      const { error: mergeError } = await supabase
+        .from("placements")
+        .update({ quantity: clash.quantity + moving })
+        .eq("id", clash.id);
+      if (mergeError) fail(mergeError);
+    } else {
+      const { error: insertError } = await supabase.from("placements").insert({
+        box_id: input.boxId,
+        row: input.row,
+        print: item.print,
+        rare: item.rare,
+        quantity: moving,
+        notes: item.notes ?? "",
+      });
+      if (insertError) fail(insertError);
+    }
+  }
+
+  return loadStore();
+}
+
 export async function deletePlacement(id: string) {
   const { data, error } = await getSupabase()
     .from("placements")

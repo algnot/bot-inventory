@@ -8,6 +8,7 @@ import { CardModal } from "@/components/card-modal";
 import { BoxPinButton, ReadOnlyBanner } from "@/components/lock-button";
 import { PlaceModal } from "@/components/place-modal";
 import { DeckCaseView } from "@/components/deck-case";
+import { MoveModal, type MoveItem } from "@/components/move-modal";
 import { cardKey } from "@/lib/types";
 import type { Card, LocatedCard, Placement } from "@/lib/types";
 import { canEditBox, requestUnlock, throwIfApiError } from "@/lib/lock-client";
@@ -27,6 +28,9 @@ export default function BoxDetailPage() {
   const [ownerId, setOwnerId] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [moveItems, setMoveItems] = useState<MoveItem[] | null>(null);
 
   const box = state?.boxes.find((item) => item.id === params.id);
 
@@ -54,6 +58,43 @@ export default function BoxDetailPage() {
     }
     return map;
   }, [state?.placements, params.id]);
+
+  const pickedSet = useMemo(() => new Set(picked), [picked]);
+
+  function togglePicked(id: string) {
+    setPicked((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  function toMoveItem(item: Placement): MoveItem {
+    const card = cardsByKey.get(cardKey(item.print, item.rare));
+    return {
+      id: item.id,
+      name: card?.name ?? item.print,
+      print: item.print,
+      quantity: item.quantity,
+      boxId: item.boxId,
+      boxName: box?.name ?? "",
+    };
+  }
+
+  function startPicking() {
+    if (!canEditBox(box, state?.unlockedBoxIds)) {
+      requestUnlock(box?.id, box?.name);
+      return;
+    }
+    setDetail(null);
+    setPicking(true);
+    setPicked([]);
+  }
+
+  function openMove(items: MoveItem[]) {
+    setDetail(null);
+    setPicking(false);
+    setPicked([]);
+    setMoveItems(items);
+  }
 
   async function remove(id: string) {
     if (!canEditBox(box, state?.unlockedBoxIds)) {
@@ -145,6 +186,13 @@ export default function BoxDetailPage() {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <BoxPinButton box={box} unlockedBoxIds={state.unlockedBoxIds} />
+          <button
+            type="button"
+            onClick={startPicking}
+            className="rounded-full border-2 border-ink bg-white px-3 py-1 text-sm font-bold"
+          >
+            {picking ? "กำลังเลือกการ์ด..." : "ย้ายการ์ด"}
+          </button>
           {editable && (
             <button
               type="button"
@@ -242,6 +290,8 @@ export default function BoxDetailPage() {
             card: cardsByKey.get(cardKey(item.print, item.rare)),
           }))}
           editable={editable}
+          selecting={picking}
+          selectedIds={pickedSet}
           onAdd={() => {
             if (!editable) {
               requestUnlock(box.id, box.name);
@@ -250,6 +300,10 @@ export default function BoxDetailPage() {
             setPlaceRow(1);
           }}
           onOpen={(entry) => {
+            if (picking) {
+              togglePicked(entry.placement.id);
+              return;
+            }
             if (!entry.card) return;
             setDetail({
               ...entry.placement,
@@ -279,6 +333,10 @@ export default function BoxDetailPage() {
                       type="button"
                       key={item.id}
                       onClick={() => {
+                        if (picking) {
+                          togglePicked(item.id);
+                          return;
+                        }
                         if (!card) return;
                         setDetail({
                           ...item,
@@ -287,7 +345,11 @@ export default function BoxDetailPage() {
                           ownerName: personName(state.people, box.ownerId),
                         });
                       }}
-                      className="relative w-20 shrink-0 overflow-hidden rounded-lg border-2 border-ink bg-white sm:w-24"
+                      className={`relative w-20 shrink-0 overflow-hidden rounded-lg border-2 bg-white sm:w-24 ${
+                        pickedSet.has(item.id)
+                          ? "border-gold ring-4 ring-gold/40"
+                          : "border-ink"
+                      }`}
                     >
                       {item.quantity > 1 && (
                         <span className="absolute right-1 top-1 z-10 rounded bg-ink px-1 text-[10px] font-bold text-cream">
@@ -322,6 +384,39 @@ export default function BoxDetailPage() {
       </div>
       )}
 
+      {picking && (
+        <div className="sticky bottom-3 z-20 mt-4 rounded-2xl border-4 border-ink bg-cream p-3 shadow-lg">
+          <p className="text-sm font-bold">
+            {picked.length ? `เลือกแล้ว ${picked.length} แบบ` : "กดการ์ดที่ต้องการย้าย"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={picked.length === 0}
+              onClick={() => {
+                const items = (state.placements ?? [])
+                  .filter((item) => pickedSet.has(item.id))
+                  .map(toMoveItem);
+                openMove(items);
+              }}
+              className="rounded-full border-2 border-ink bg-ink px-4 py-2 text-sm font-extrabold text-cream disabled:opacity-50"
+            >
+              ย้ายไปกล่องอื่น
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPicking(false);
+                setPicked([]);
+              }}
+              className="rounded-full border-2 border-ink bg-white px-4 py-2 text-sm font-bold"
+            >
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+      )}
+
       {placeRow !== null && (
         <PlaceModal
           boxes={state.boxes}
@@ -342,6 +437,22 @@ export default function BoxDetailPage() {
           locations={[detail]}
           onClose={() => setDetail(null)}
           onRemove={editable ? () => void remove(detail.id) : undefined}
+          onMove={
+            editable
+              ? (item) => openMove([toMoveItem(item)])
+              : undefined
+          }
+        />
+      )}
+
+      {moveItems && (
+        <MoveModal
+          boxes={state.boxes}
+          people={state.people}
+          unlockedBoxIds={state.unlockedBoxIds}
+          items={moveItems}
+          onClose={() => setMoveItems(null)}
+          onMoved={() => void reload()}
         />
       )}
     </div>

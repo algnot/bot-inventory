@@ -71,10 +71,12 @@ function compareEntries(a: DeckEntry, b: DeckEntry, sort: SortKey) {
 function DeckTile({
   entry,
   life,
+  selected,
   onOpen,
 }: {
   entry: DeckEntry;
   life?: boolean;
+  selected?: boolean;
   onOpen: () => void;
 }) {
   const name = entry.card?.name ?? entry.placement.print;
@@ -83,7 +85,7 @@ function DeckTile({
       type="button"
       onClick={onOpen}
       className={`relative min-w-0 overflow-hidden rounded-lg border-2 bg-white text-left ${
-        life ? "border-bot-red" : "border-ink"
+        selected ? "border-gold ring-4 ring-gold/40" : life ? "border-bot-red" : "border-ink"
       }`}
     >
       <span className="absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-ink bg-ink px-1 text-[11px] font-black text-cream">
@@ -106,11 +108,15 @@ export function DeckCaseView({
   onOpen,
   onAdd,
   editable,
+  selecting = false,
+  selectedIds,
 }: {
   entries: DeckEntry[];
   onOpen: (entry: DeckEntry) => void;
   onAdd: () => void;
   editable: boolean;
+  selecting?: boolean;
+  selectedIds?: Set<string>;
 }) {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>("recommended");
@@ -183,7 +189,7 @@ export function DeckCaseView({
             );
           })}
         </div>
-        {editable && (
+        {editable && !selecting && (
           <button
             type="button"
             onClick={onAdd}
@@ -221,10 +227,11 @@ export function DeckCaseView({
                 key={cardKey(entry.placement.print, entry.placement.rare) + entry.placement.id}
                 entry={entry}
                 life
+                selected={selectedIds?.has(entry.placement.id)}
                 onOpen={() => onOpen(entry)}
               />
             ))}
-            {editable && (
+            {editable && !selecting && (
               <button
                 type="button"
                 onClick={onAdd}
@@ -257,10 +264,11 @@ export function DeckCaseView({
                 <DeckTile
                   key={cardKey(entry.placement.print, entry.placement.rare) + entry.placement.id}
                   entry={entry}
+                  selected={selectedIds?.has(entry.placement.id)}
                   onOpen={() => onOpen(entry)}
                 />
               ))}
-              {editable && (
+              {editable && !selecting && (
                 <button
                   type="button"
                   onClick={onAdd}

@@ -82,6 +82,14 @@ export function updatePlacement(
   return backend().updatePlacement(id, patch);
 }
 
+export function movePlacements(input: {
+  boxId: string;
+  row: number;
+  items: Array<{ id: string; quantity?: number }>;
+}) {
+  return backend().movePlacements(input);
+}
+
 export function deletePlacement(id: string) {
   return backend().deletePlacement(id);
 }
