@@ -12,7 +12,7 @@ import type { Card, LocatedCard } from "@/lib/types";
 
 export default function HomePage() {
   const [query, setQuery] = useState("");
-  const { state, loading, reload } = useAppState(query);
+  const { state, loading, reload, error } = useAppState(query);
   const [detail, setDetail] = useState<LocatedCard | null>(null);
   const [placeOpen, setPlaceOpen] = useState(false);
   const [placeCard, setPlaceCard] = useState<Card | null>(null);
@@ -64,8 +64,15 @@ export default function HomePage() {
           <span className="rounded-full border-2 border-ink bg-white px-3 py-1">
             แคตตาล็อก {state?.catalogCount ?? 0} ใบ
           </span>
+          {state?.storage && (
+            <span className="rounded-full border-2 border-ink bg-white px-3 py-1">
+              {state.storage === "supabase" ? "คลาวด์ Supabase" : "ไฟล์ในเครื่อง"}
+            </span>
+          )}
         </div>
       </div>
+
+      {error && <p className="mt-6 font-bold text-bot-red">{error}</p>}
 
       {loading && !state && <p className="mt-6 text-muted">กำลังโหลด...</p>}
 

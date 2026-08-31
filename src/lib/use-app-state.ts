@@ -10,6 +10,7 @@ export type AppState = {
   located: LocatedCard[];
   meta: CatalogMeta;
   catalogCount: number;
+  storage: "supabase" | "file";
 };
 
 export function useAppState(query = "") {
@@ -24,11 +25,15 @@ export function useAppState(query = "") {
       const res = await fetch(`/api/state?q=${encodeURIComponent(q)}`, {
         cache: "no-store",
       });
-      if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error || "โหลดข้อมูลไม่สำเร็จ");
+      }
       const data = (await res.json()) as AppState;
       setState({
         ...data,
         people: data.people ?? [],
+        storage: data.storage ?? "file",
       });
       setError(null);
     } catch (err) {

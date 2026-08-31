@@ -1,135 +1,26 @@
-import { promises as fs } from "fs";
-import path from "path";
-import type { Box, CatalogMeta, Person, Placement, StoreData } from "./types";
+import type { Box, CatalogMeta, Placement, StoreData } from "./types";
+import { storageMode } from "./supabase";
+import * as fileStore from "./store-file";
+import * as supabaseStore from "./store-supabase";
 
-const STORE_PATH = path.join(process.cwd(), "data", "store.json");
-
-const emptyMeta = (): CatalogMeta => ({
-  syncedAt: null,
-  count: 0,
-  lastAdded: 0,
-  lastNewCards: [],
-});
-
-const emptyStore = (): StoreData => ({
-  meta: emptyMeta(),
-  people: [],
-  boxes: [],
-  placements: [],
-});
-
-function migratePerson(raw: Person): Person {
-  return {
-    id: raw.id,
-    name: raw.name,
-    createdAt: raw.createdAt,
-  };
-}
-
-function migrateBox(raw: Box & { slotsPerRow?: number }): Box {
-  return {
-    id: raw.id,
-    name: raw.name,
-    rows: raw.rows,
-    notes: raw.notes ?? "",
-    ownerId: raw.ownerId ?? null,
-    createdAt: raw.createdAt,
-  };
-}
-
-function migratePlacement(raw: Placement & { slot?: number }): Placement {
-  return {
-    id: raw.id,
-    boxId: raw.boxId,
-    row: raw.row,
-    print: raw.print,
-    rare: raw.rare,
-    quantity: raw.quantity,
-    notes: raw.notes ?? "",
-    addedAt: raw.addedAt,
-  };
-}
-
-let writeQueue: Promise<void> = Promise.resolve();
-
-async function readStore(): Promise<StoreData> {
-  try {
-    const raw = await fs.readFile(STORE_PATH, "utf8");
-    const data = JSON.parse(raw) as StoreData;
-    return {
-      meta: { ...emptyMeta(), ...data.meta },
-      people: (data.people ?? []).map(migratePerson),
-      boxes: (data.boxes ?? []).map(migrateBox),
-      placements: (data.placements ?? []).map(migratePlacement),
-    };
-  } catch {
-    return emptyStore();
-  }
-}
-
-async function writeStore(data: StoreData) {
-  await fs.mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await fs.writeFile(STORE_PATH, JSON.stringify(data, null, 2), "utf8");
-}
-
-function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  const run = writeQueue.then(fn, fn);
-  writeQueue = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+function backend() {
+  return storageMode() === "supabase" ? supabaseStore : fileStore;
 }
 
 export function getStore() {
-  return enqueue(() => readStore());
-}
-
-export function updateStore(mutator: (data: StoreData) => StoreData | void) {
-  return enqueue(async () => {
-    const current = await readStore();
-    const next = mutator(current) ?? current;
-    await writeStore(next);
-    return next;
-  });
+  return backend().getStore();
 }
 
 export function createPerson(name: string) {
-  return updateStore((data) => {
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error("ใส่ชื่อก่อน");
-    if (data.people.some((person) => person.name === trimmed)) {
-      throw new Error("มีชื่อนี้อยู่แล้ว");
-    }
-    const person: Person = {
-      id: crypto.randomUUID(),
-      name: trimmed,
-      createdAt: new Date().toISOString(),
-    };
-    data.people.push(person);
-  });
+  return backend().createPerson(name);
 }
 
 export function updatePerson(id: string, name: string) {
-  return updateStore((data) => {
-    const person = data.people.find((item) => item.id === id);
-    if (!person) throw new Error("ไม่พบคนนี้");
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error("ใส่ชื่อก่อน");
-    if (data.people.some((item) => item.id !== id && item.name === trimmed)) {
-      throw new Error("มีชื่อนี้อยู่แล้ว");
-    }
-    person.name = trimmed;
-  });
+  return backend().updatePerson(id, name);
 }
 
 export function deletePerson(id: string) {
-  return updateStore((data) => {
-    data.people = data.people.filter((person) => person.id !== id);
-    for (const box of data.boxes) {
-      if (box.ownerId === id) box.ownerId = null;
-    }
-  });
+  return backend().deletePerson(id);
 }
 
 export function createBox(input: {
@@ -138,53 +29,18 @@ export function createBox(input: {
   notes?: string;
   ownerId?: string | null;
 }): Promise<StoreData> {
-  return updateStore((data) => {
-    const ownerId = input.ownerId || null;
-    if (ownerId && !data.people.some((person) => person.id === ownerId)) {
-      throw new Error("ไม่พบเจ้าของกล่อง");
-    }
-    const box: Box = {
-      id: crypto.randomUUID(),
-      name: input.name.trim() || "กล่องใหม่",
-      rows: Math.max(1, Math.min(40, Math.floor(input.rows))),
-      notes: input.notes?.trim() ?? "",
-      ownerId,
-      createdAt: new Date().toISOString(),
-    };
-    data.boxes.push(box);
-  });
+  return backend().createBox(input);
 }
 
 export function updateBox(
   id: string,
   patch: Partial<Pick<Box, "name" | "rows" | "notes" | "ownerId">>,
 ) {
-  return updateStore((data) => {
-    const box = data.boxes.find((item) => item.id === id);
-    if (!box) throw new Error("ไม่พบกล่อง");
-    if (patch.name !== undefined) box.name = patch.name.trim() || box.name;
-    if (patch.notes !== undefined) box.notes = patch.notes;
-    if (patch.rows !== undefined) {
-      box.rows = Math.max(1, Math.min(40, Math.floor(patch.rows)));
-    }
-    if (patch.ownerId !== undefined) {
-      const ownerId = patch.ownerId || null;
-      if (ownerId && !data.people.some((person) => person.id === ownerId)) {
-        throw new Error("ไม่พบเจ้าของกล่อง");
-      }
-      box.ownerId = ownerId;
-    }
-    data.placements = data.placements.filter(
-      (item) => item.boxId !== id || item.row <= box.rows,
-    );
-  });
+  return backend().updateBox(id, patch);
 }
 
 export function deleteBox(id: string) {
-  return updateStore((data) => {
-    data.boxes = data.boxes.filter((box) => box.id !== id);
-    data.placements = data.placements.filter((item) => item.boxId !== id);
-  });
+  return backend().deleteBox(id);
 }
 
 export function addPlacement(input: {
@@ -195,79 +51,20 @@ export function addPlacement(input: {
   quantity?: number;
   notes?: string;
 }) {
-  return updateStore((data) => {
-    const box = data.boxes.find((item) => item.id === input.boxId);
-    if (!box) throw new Error("ไม่พบกล่อง");
-    if (input.row < 1 || input.row > box.rows) throw new Error("แถวไม่ถูกต้อง");
-    const quantity = Math.max(1, Math.floor(input.quantity ?? 1));
-    const existing = data.placements.find(
-      (item) =>
-        item.boxId === input.boxId &&
-        item.row === input.row &&
-        item.print === input.print &&
-        item.rare === input.rare,
-    );
-    if (existing) {
-      existing.quantity += quantity;
-      if (input.notes) existing.notes = input.notes;
-      return;
-    }
-    const placement: Placement = {
-      id: crypto.randomUUID(),
-      boxId: input.boxId,
-      row: input.row,
-      print: input.print,
-      rare: input.rare,
-      quantity,
-      notes: input.notes?.trim() ?? "",
-      addedAt: new Date().toISOString(),
-    };
-    data.placements.push(placement);
-  });
+  return backend().addPlacement(input);
 }
 
 export function updatePlacement(
   id: string,
   patch: Partial<Pick<Placement, "row" | "boxId" | "quantity" | "notes">>,
 ) {
-  return updateStore((data) => {
-    const item = data.placements.find((placement) => placement.id === id);
-    if (!item) throw new Error("ไม่พบการ์ดในแถวนี้");
-    const boxId = patch.boxId ?? item.boxId;
-    const box = data.boxes.find((entry) => entry.id === boxId);
-    if (!box) throw new Error("ไม่พบกล่อง");
-    const row = patch.row ?? item.row;
-    if (row < 1 || row > box.rows) throw new Error("แถวไม่ถูกต้อง");
-    const clash = data.placements.find(
-      (other) =>
-        other.id !== id &&
-        other.boxId === boxId &&
-        other.row === row &&
-        other.print === item.print &&
-        other.rare === item.rare,
-    );
-    if (clash) {
-      clash.quantity += item.quantity;
-      data.placements = data.placements.filter((entry) => entry.id !== id);
-      return;
-    }
-    item.boxId = boxId;
-    item.row = row;
-    if (patch.quantity !== undefined) {
-      item.quantity = Math.max(1, Math.floor(patch.quantity));
-    }
-    if (patch.notes !== undefined) item.notes = patch.notes;
-  });
+  return backend().updatePlacement(id, patch);
 }
 
 export function deletePlacement(id: string) {
-  return updateStore((data) => {
-    data.placements = data.placements.filter((item) => item.id !== id);
-  });
+  return backend().deletePlacement(id);
 }
 
 export function setCatalogMeta(meta: CatalogMeta) {
-  return updateStore((data) => {
-    data.meta = meta;
-  });
+  return backend().setCatalogMeta(meta);
 }

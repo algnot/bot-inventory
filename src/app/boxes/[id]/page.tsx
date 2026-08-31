@@ -13,7 +13,7 @@ import { useAppState } from "@/lib/use-app-state";
 
 export default function BoxDetailPage() {
   const params = useParams<{ id: string }>();
-  const { state, reload } = useAppState();
+  const { state, reload, error } = useAppState();
   const [catalog, setCatalog] = useState<Card[]>([]);
   const [placeRow, setPlaceRow] = useState<number | null>(null);
   const [detail, setDetail] = useState<LocatedCard | null>(null);
@@ -57,6 +57,7 @@ export default function BoxDetailPage() {
     await reload();
   }
 
+  if (error) return <p className="p-6 font-bold text-bot-red">{error}</p>;
   if (!state) return <p className="p-6 text-muted">กำลังโหลด...</p>;
   if (!box) {
     return (

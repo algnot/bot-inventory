@@ -16,6 +16,23 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Supabase
+
+คลังกล่อง เจ้าของ และการ์ดในกล่อง เก็บบน Supabase ได้ แคตตาล็อกการ์ดยังอยู่ที่ `data/cards.json`
+
+1. สร้างโปรเจกต์ที่ [supabase.com](https://supabase.com)
+2. เปิด SQL Editor วางเนื้อหาใน `supabase/schema.sql` แล้วกด Run
+3. ที่ Project Settings → API คัดลอก Project URL และ `service_role` key ใส่ `.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+```
+
+4. รีสตาร์ท `npm run dev`
+
+ถ้ายังไม่ใส่คีย์ แอปจะใช้ `data/store.json` ในเครื่องเหมือนเดิม หน้าแรกจะขึ้นว่า **คลาวด์ Supabase** เมื่อต่อสำเร็จ
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

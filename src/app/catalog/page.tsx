@@ -16,7 +16,7 @@ import type { Box, Card, LocatedCard, Person, Placement } from "@/lib/types";
 import { useAppState } from "@/lib/use-app-state";
 
 export default function CatalogPage() {
-  const { state, reload } = useAppState();
+  const { state, reload, error } = useAppState();
   const [cards, setCards] = useState<Card[]>([]);
   const [query, setQuery] = useState("");
   const [series, setSeries] = useState<string[]>([]);
@@ -99,7 +99,9 @@ export default function CatalogPage() {
         {state?.meta.syncedAt
           ? ` · ซิงก์ล่าสุด ${new Date(state.meta.syncedAt).toLocaleString("th-TH")}`
           : " · ยังไม่เคยซิงก์จากเว็บ"}
+        {state?.storage === "supabase" ? " · คลาวด์" : ""}
       </p>
+      {error && <p className="mt-3 font-bold text-bot-red">{error}</p>}
       {state?.meta.lastAdded ? (
         <p className="mt-2 rounded-xl border-2 border-ink bg-gold/40 px-3 py-2 text-sm font-bold">
           ซิงก์รอบล่าสุดมีการ์ดใหม่ {state.meta.lastAdded} ใบ

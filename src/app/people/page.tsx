@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAppState } from "@/lib/use-app-state";
 
 export default function PeoplePage() {
-  const { state, loading, reload } = useAppState();
+  const { state, loading, reload, error: loadError } = useAppState();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,6 +73,7 @@ export default function PeoplePage() {
       </form>
 
       {loading && !state && <p className="mt-6 text-muted">กำลังโหลด...</p>}
+      {loadError && <p className="mt-6 font-bold text-bot-red">{loadError}</p>}
 
       {state && state.people.length === 0 && (
         <p className="mt-6 text-muted">ยังไม่มีรายชื่อ — ใส่ชื่อด้านบนแล้วกดเพิ่มคน</p>

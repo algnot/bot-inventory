@@ -1,0 +1,280 @@
+import type { Box, CatalogMeta, Placement, StoreData } from "./types";
+import {
+  explainSupabaseError,
+  getSupabase,
+  mapBox,
+  mapMeta,
+  mapPerson,
+  mapPlacement,
+  type BoxRow,
+  type CatalogMetaRow,
+  type PersonRow,
+  type PlacementRow,
+} from "./supabase";
+
+function fail(error: { code?: string; message: string } | null): never {
+  throw new Error(error ? explainSupabaseError(error) : "บันทึกไม่สำเร็จ");
+}
+
+async function loadStore(): Promise<StoreData> {
+  const supabase = getSupabase();
+  const [people, boxes, placements, meta] = await Promise.all([
+    supabase.from("people").select("*").order("created_at"),
+    supabase.from("boxes").select("*").order("created_at"),
+    supabase.from("placements").select("*").order("added_at"),
+    supabase.from("catalog_meta").select("*").eq("id", 1).maybeSingle(),
+  ]);
+
+  const firstError = people.error || boxes.error || placements.error || meta.error;
+  if (firstError) fail(firstError);
+
+  return {
+    meta: mapMeta((meta.data as CatalogMetaRow | null) ?? null),
+    people: ((people.data ?? []) as PersonRow[]).map(mapPerson),
+    boxes: ((boxes.data ?? []) as BoxRow[]).map(mapBox),
+    placements: ((placements.data ?? []) as PlacementRow[]).map(mapPlacement),
+  };
+}
+
+export function getStore() {
+  return loadStore();
+}
+
+export async function createPerson(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("ใส่ชื่อก่อน");
+  const { error } = await getSupabase().from("people").insert({ name: trimmed });
+  if (error) fail(error);
+  return loadStore();
+}
+
+export async function updatePerson(id: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("ใส่ชื่อก่อน");
+  const { data, error } = await getSupabase()
+    .from("people")
+    .update({ name: trimmed })
+    .eq("id", id)
+    .select("id");
+  if (error) fail(error);
+  if (!data?.length) throw new Error("ไม่พบคนนี้");
+  return loadStore();
+}
+
+export async function deletePerson(id: string) {
+  const { data, error } = await getSupabase()
+    .from("people")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) fail(error);
+  if (!data?.length) throw new Error("ไม่พบคนนี้");
+  return loadStore();
+}
+
+export async function createBox(input: {
+  name: string;
+  rows: number;
+  notes?: string;
+  ownerId?: string | null;
+}): Promise<StoreData> {
+  const ownerId = input.ownerId || null;
+  const { error } = await getSupabase().from("boxes").insert({
+    name: input.name.trim() || "กล่องใหม่",
+    rows: Math.max(1, Math.min(40, Math.floor(input.rows))),
+    notes: input.notes?.trim() ?? "",
+    owner_id: ownerId,
+  });
+  if (error) fail(error);
+  return loadStore();
+}
+
+export async function updateBox(
+  id: string,
+  patch: Partial<Pick<Box, "name" | "rows" | "notes" | "ownerId">>,
+) {
+  const supabase = getSupabase();
+  const { data: current, error: loadError } = await supabase
+    .from("boxes")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadError) fail(loadError);
+  if (!current) throw new Error("ไม่พบกล่อง");
+
+  const next = {
+    name:
+      patch.name !== undefined ? patch.name.trim() || current.name : current.name,
+    notes: patch.notes !== undefined ? patch.notes : current.notes,
+    rows:
+      patch.rows !== undefined
+        ? Math.max(1, Math.min(40, Math.floor(patch.rows)))
+        : current.rows,
+    owner_id:
+      patch.ownerId !== undefined ? patch.ownerId || null : current.owner_id,
+  };
+
+  const { error: updateError } = await supabase.from("boxes").update(next).eq("id", id);
+  if (updateError) fail(updateError);
+
+  if (next.rows < current.rows) {
+    const { error: pruneError } = await supabase
+      .from("placements")
+      .delete()
+      .eq("box_id", id)
+      .gt("row", next.rows);
+    if (pruneError) fail(pruneError);
+  }
+
+  return loadStore();
+}
+
+export async function deleteBox(id: string) {
+  const { data, error } = await getSupabase()
+    .from("boxes")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) fail(error);
+  if (!data?.length) throw new Error("ไม่พบกล่อง");
+  return loadStore();
+}
+
+export async function addPlacement(input: {
+  boxId: string;
+  row: number;
+  print: string;
+  rare: string;
+  quantity?: number;
+  notes?: string;
+}) {
+  const supabase = getSupabase();
+  const { data: box, error: boxError } = await supabase
+    .from("boxes")
+    .select("id, rows")
+    .eq("id", input.boxId)
+    .maybeSingle();
+  if (boxError) fail(boxError);
+  if (!box) throw new Error("ไม่พบกล่อง");
+  if (input.row < 1 || input.row > box.rows) throw new Error("แถวไม่ถูกต้อง");
+
+  const quantity = Math.max(1, Math.floor(input.quantity ?? 1));
+  const notes = input.notes?.trim() ?? "";
+
+  const { data: existing, error: findError } = await supabase
+    .from("placements")
+    .select("*")
+    .eq("box_id", input.boxId)
+    .eq("row", input.row)
+    .eq("print", input.print)
+    .eq("rare", input.rare)
+    .maybeSingle();
+  if (findError) fail(findError);
+
+  if (existing) {
+    const { error } = await supabase
+      .from("placements")
+      .update({
+        quantity: existing.quantity + quantity,
+        notes: notes || existing.notes,
+      })
+      .eq("id", existing.id);
+    if (error) fail(error);
+    return loadStore();
+  }
+
+  const { error } = await supabase.from("placements").insert({
+    box_id: input.boxId,
+    row: input.row,
+    print: input.print,
+    rare: input.rare,
+    quantity,
+    notes,
+  });
+  if (error) fail(error);
+  return loadStore();
+}
+
+export async function updatePlacement(
+  id: string,
+  patch: Partial<Pick<Placement, "row" | "boxId" | "quantity" | "notes">>,
+) {
+  const supabase = getSupabase();
+  const { data: item, error: loadError } = await supabase
+    .from("placements")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadError) fail(loadError);
+  if (!item) throw new Error("ไม่พบการ์ดในแถวนี้");
+
+  const boxId = patch.boxId ?? item.box_id;
+  const { data: box, error: boxError } = await supabase
+    .from("boxes")
+    .select("id, rows")
+    .eq("id", boxId)
+    .maybeSingle();
+  if (boxError) fail(boxError);
+  if (!box) throw new Error("ไม่พบกล่อง");
+
+  const row = patch.row ?? item.row;
+  if (row < 1 || row > box.rows) throw new Error("แถวไม่ถูกต้อง");
+
+  const { data: clash, error: clashError } = await supabase
+    .from("placements")
+    .select("*")
+    .neq("id", id)
+    .eq("box_id", boxId)
+    .eq("row", row)
+    .eq("print", item.print)
+    .eq("rare", item.rare)
+    .maybeSingle();
+  if (clashError) fail(clashError);
+
+  if (clash) {
+    const { error: mergeError } = await supabase
+      .from("placements")
+      .update({ quantity: clash.quantity + item.quantity })
+      .eq("id", clash.id);
+    if (mergeError) fail(mergeError);
+    const { error: deleteError } = await supabase.from("placements").delete().eq("id", id);
+    if (deleteError) fail(deleteError);
+    return loadStore();
+  }
+
+  const next: Record<string, unknown> = {
+    box_id: boxId,
+    row,
+  };
+  if (patch.quantity !== undefined) {
+    next.quantity = Math.max(1, Math.floor(patch.quantity));
+  }
+  if (patch.notes !== undefined) next.notes = patch.notes;
+
+  const { error } = await supabase.from("placements").update(next).eq("id", id);
+  if (error) fail(error);
+  return loadStore();
+}
+
+export async function deletePlacement(id: string) {
+  const { data, error } = await getSupabase()
+    .from("placements")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) fail(error);
+  if (!data?.length) throw new Error("ไม่พบการ์ดในแถวนี้");
+  return loadStore();
+}
+
+export async function setCatalogMeta(meta: CatalogMeta) {
+  const { error } = await getSupabase().from("catalog_meta").upsert({
+    id: 1,
+    synced_at: meta.syncedAt,
+    count: meta.count,
+    last_added: meta.lastAdded,
+    last_new_cards: meta.lastNewCards,
+  });
+  if (error) fail(error);
+  return loadStore();
+}

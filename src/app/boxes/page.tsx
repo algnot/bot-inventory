@@ -6,7 +6,7 @@ import { personName } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
 
 export default function BoxesPage() {
-  const { state, loading, reload } = useAppState();
+  const { state, loading, reload, error: loadError } = useAppState();
   const [name, setName] = useState("");
   const [rows, setRows] = useState(4);
   const [ownerId, setOwnerId] = useState("");
@@ -119,6 +119,8 @@ export default function BoxesPage() {
           </p>
         )}
       </form>
+
+      {loadError && <p className="mt-6 font-bold text-bot-red">{loadError}</p>}
 
       {loading && !state && <p className="mt-6 text-muted">กำลังโหลด...</p>}
 
