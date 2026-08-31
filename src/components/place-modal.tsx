@@ -253,7 +253,7 @@ export function PlaceModal({
               ))}
             </select>
           </label>
-          <label className="col-span-2 text-sm font-bold">
+          <label className="col-span-2 hidden text-sm font-bold md:block">
             หมายเหตุ
             <input
               value={notes}
@@ -276,51 +276,87 @@ export function PlaceModal({
   );
 
   const selectedList = (
-    <div ref={selectedListRef} className="max-h-36 min-h-0 space-y-2 overflow-y-auto md:max-h-none md:min-h-0 md:flex-1">
-      {selected.length === 0 ? (
-        <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-3 text-center text-sm font-medium text-muted md:py-8">
-          กดการ์ดจากแคตตาล็อกเพื่อเพิ่มจำนวน
-        </p>
-      ) : (
-        selected.map((item) => (
+    <>
+      <div
+        ref={selectedListRef}
+        className="flex shrink-0 gap-2 overflow-x-auto pb-1 md:hidden"
+      >
+        {selected.map((item) => (
           <div
             key={cardKey(item.card.print, item.card.rare)}
-            className="flex items-center gap-2 rounded-xl border-2 border-ink bg-white p-2"
+            className="flex w-30 shrink-0 flex-col items-center gap-1 rounded-xl border-2 border-ink bg-white p-1.5"
           >
-            <div className="w-12 shrink-0 overflow-hidden rounded-md border border-ink sm:w-14">
+            <div className="w-14 overflow-hidden rounded-md border border-ink">
               <CardImage
                 print={item.card.print}
                 rare={item.card.rare}
                 name={item.card.name}
               />
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-extrabold">{item.card.name}</p>
-              <p className="text-xs text-muted">{item.card.print}</p>
-              <div className="mt-1">
-                <RarityBadge rare={item.card.rare} compact />
+            <p className="w-full truncate text-center text-[11px] font-extrabold">
+              {item.card.name}
+            </p>
+            <QtyStepper
+              value={item.quantity}
+              onMinus={() => bump(item.card, -1)}
+              onPlus={() => bump(item.card, 1)}
+            />
+            <button
+              type="button"
+              onClick={() => removeCard(item.card)}
+              className="text-[11px] font-bold text-muted underline"
+            >
+              เอาออก
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="hidden min-h-0 flex-1 flex-col space-y-2 overflow-y-auto md:flex">
+        {selected.length === 0 ? (
+          <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
+            กดการ์ดจากแคตตาล็อกเพื่อเพิ่มจำนวน
+          </p>
+        ) : (
+          selected.map((item) => (
+            <div
+              key={cardKey(item.card.print, item.card.rare)}
+              className="flex items-center gap-2 rounded-xl border-2 border-ink bg-white p-2"
+            >
+              <div className="w-14 shrink-0 overflow-hidden rounded-md border border-ink">
+                <CardImage
+                  print={item.card.print}
+                  rare={item.card.rare}
+                  name={item.card.name}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-extrabold">{item.card.name}</p>
+                <p className="text-xs text-muted">{item.card.print}</p>
+                <div className="mt-1">
+                  <RarityBadge rare={item.card.rare} compact />
+                </div>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <QtyStepper
+                  value={item.quantity}
+                  onMinus={() => bump(item.card, -1)}
+                  onPlus={() => bump(item.card, 1)}
+                />
+                {!lockedCard && (
+                  <button
+                    type="button"
+                    onClick={() => removeCard(item.card)}
+                    className="text-xs font-bold text-muted underline hover:text-bot-red"
+                  >
+                    เอาออก
+                  </button>
+                )}
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <QtyStepper
-                value={item.quantity}
-                onMinus={() => bump(item.card, -1)}
-                onPlus={() => bump(item.card, 1)}
-              />
-              {!lockedCard && (
-                <button
-                  type="button"
-                  onClick={() => removeCard(item.card)}
-                  className="text-xs font-bold text-muted underline hover:text-bot-red"
-                >
-                  เอาออก
-                </button>
-              )}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
+          ))
+        )}
+      </div>
+    </>
   );
 
   return (
@@ -329,7 +365,7 @@ export function PlaceModal({
       onClick={onClose}
     >
       <div
-        className="flex h-dvh w-full max-w-6xl flex-col overflow-hidden border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:rounded-3xl"
+        className="flex h-svh max-h-svh w-full max-w-6xl flex-col overflow-hidden border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:max-h-none md:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b-4 border-ink px-3 py-2 sm:px-5 sm:py-3">
@@ -492,7 +528,7 @@ export function PlaceModal({
               </div>
             </section>
 
-            <section className="flex max-h-[42%] min-h-0 shrink-0 flex-col gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4 md:max-h-none md:flex-1 md:gap-3 md:pb-4">
+            <section className="flex shrink-0 flex-col gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 md:min-h-0 md:flex-1 md:gap-3 md:pb-4">
               <p className="shrink-0 text-sm font-bold">
                 {selected.length
                   ? `จะใส่ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
