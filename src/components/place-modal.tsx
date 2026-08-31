@@ -31,16 +31,16 @@ function QtyStepper({
       <button
         type="button"
         onClick={onMinus}
-        className="flex h-9 w-9 items-center justify-center text-lg font-black hover:bg-ink hover:text-cream sm:h-10 sm:w-10"
+        className="flex h-8 w-8 items-center justify-center text-base font-black hover:bg-ink hover:text-cream sm:h-10 sm:w-10 sm:text-lg"
         aria-label="ลดจำนวน"
       >
         −
       </button>
-      <span className="min-w-7 text-center text-sm font-black tabular-nums sm:min-w-8">{value}</span>
+      <span className="min-w-6 text-center text-sm font-black tabular-nums sm:min-w-8">{value}</span>
       <button
         type="button"
         onClick={onPlus}
-        className="flex h-9 w-9 items-center justify-center text-lg font-black hover:bg-ink hover:text-cream sm:h-10 sm:w-10"
+        className="flex h-8 w-8 items-center justify-center text-base font-black hover:bg-ink hover:text-cream sm:h-10 sm:w-10 sm:text-lg"
         aria-label="เพิ่มจำนวน"
       >
         +
@@ -142,7 +142,8 @@ export function PlaceModal({
       const next = { ...current[index], quantity: current[index].quantity + 1 };
       return [next, ...current.filter((_, i) => i !== index)];
     });
-    selectedListRef.current?.scrollTo({ top: 0 });
+    const list = selectedListRef.current;
+    if (list) list.scrollTo({ left: 0, top: 0 });
   }
 
   function bump(card: Card, delta: number) {
@@ -217,8 +218,8 @@ export function PlaceModal({
           ยังไม่มีกล่อง — ไปหน้ากล่องเพื่อสร้างก่อน
         </p>
       ) : (
-        <div className="grid grid-cols-[1fr_5.5rem] gap-2">
-          <label className="text-sm font-bold">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+          <label className="min-w-0 text-sm font-bold">
             กล่อง
             <select
               value={boxId}
@@ -226,7 +227,7 @@ export function PlaceModal({
                 setBoxId(event.target.value);
                 setRow(1);
               }}
-              className="mt-1 h-10 w-full rounded-xl border-2 border-ink bg-white px-2 sm:h-11 sm:px-3"
+              className="mt-1 h-10 w-full min-w-0 rounded-xl border-2 border-ink bg-white px-2 sm:h-11 sm:px-3"
             >
               {boxes.map((item) => (
                 <option key={item.id} value={item.id}>
@@ -277,40 +278,42 @@ export function PlaceModal({
 
   const selectedList = (
     <>
-      <div
-        ref={selectedListRef}
-        className="flex shrink-0 gap-2 overflow-x-auto pb-1 md:hidden"
-      >
-        {selected.map((item) => (
-          <div
-            key={cardKey(item.card.print, item.card.rare)}
-            className="flex w-30 shrink-0 flex-col items-center gap-1 rounded-xl border-2 border-ink bg-white p-1.5"
-          >
-            <div className="w-14 overflow-hidden rounded-md border border-ink">
-              <CardImage
-                print={item.card.print}
-                rare={item.card.rare}
-                name={item.card.name}
-              />
-            </div>
-            <p className="w-full truncate text-center text-[11px] font-extrabold">
-              {item.card.name}
-            </p>
-            <QtyStepper
-              value={item.quantity}
-              onMinus={() => bump(item.card, -1)}
-              onPlus={() => bump(item.card, 1)}
-            />
-            <button
-              type="button"
-              onClick={() => removeCard(item.card)}
-              className="text-[11px] font-bold text-muted underline"
+      {selected.length > 0 && (
+        <div
+          ref={selectedListRef}
+          className="flex min-w-0 w-full max-w-full flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1 md:hidden"
+        >
+          {selected.map((item) => (
+            <div
+              key={cardKey(item.card.print, item.card.rare)}
+              className="flex w-28 shrink-0 flex-col items-center gap-1 rounded-xl border-2 border-ink bg-white p-1"
             >
-              เอาออก
-            </button>
-          </div>
-        ))}
-      </div>
+              <div className="w-12 overflow-hidden rounded-md border border-ink">
+                <CardImage
+                  print={item.card.print}
+                  rare={item.card.rare}
+                  name={item.card.name}
+                />
+              </div>
+              <p className="w-full truncate text-center text-[11px] font-extrabold">
+                {item.card.name}
+              </p>
+              <QtyStepper
+                value={item.quantity}
+                onMinus={() => bump(item.card, -1)}
+                onPlus={() => bump(item.card, 1)}
+              />
+              <button
+                type="button"
+                onClick={() => removeCard(item.card)}
+                className="text-[11px] font-bold text-muted underline"
+              >
+                เอาออก
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="hidden min-h-0 flex-1 flex-col space-y-2 overflow-y-auto md:flex">
         {selected.length === 0 ? (
           <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
@@ -401,8 +404,8 @@ export function PlaceModal({
             </button>
           </div>
         ) : (
-          <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.9fr)] md:grid-rows-1">
-            <section className="flex min-h-0 flex-col border-b-4 border-ink p-3 sm:p-4 md:border-r-4 md:border-b-0">
+          <div className="grid min-h-0 min-w-0 flex-1 grid-rows-[minmax(0,1fr)_auto] overflow-hidden md:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.9fr)] md:grid-rows-1">
+            <section className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b-4 border-ink p-3 sm:p-4 md:border-r-4 md:border-b-0">
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -528,7 +531,7 @@ export function PlaceModal({
               </div>
             </section>
 
-            <section className="flex shrink-0 flex-col gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 md:min-h-0 md:flex-1 md:gap-3 md:pb-4">
+            <section className="flex min-w-0 shrink-0 flex-col gap-2 overflow-hidden p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4 md:min-h-0 md:flex-1 md:gap-3 md:pb-4">
               <p className="shrink-0 text-sm font-bold">
                 {selected.length
                   ? `จะใส่ ${selected.length} แบบ · รวม ${selectedCount} ใบ`
