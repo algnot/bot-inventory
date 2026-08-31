@@ -205,34 +205,56 @@ export function addPlacement(input: {
   quantity?: number;
   notes?: string;
 }) {
+  return addPlacements({
+    boxId: input.boxId,
+    row: input.row,
+    notes: input.notes,
+    items: [{ print: input.print, rare: input.rare, quantity: input.quantity }],
+  });
+}
+
+export function addPlacements(input: {
+  boxId: string;
+  row: number;
+  notes?: string;
+  items: Array<{ print: string; rare: string; quantity?: number }>;
+}) {
   return updateStore((data) => {
+    if (!input.items.length) throw new Error("เลือกการ์ดก่อน");
     const box = data.boxes.find((item) => item.id === input.boxId);
     if (!box) throw new Error("ไม่พบกล่อง");
     if (input.row < 1 || input.row > box.rows) throw new Error("แถวไม่ถูกต้อง");
-    const quantity = Math.max(1, Math.floor(input.quantity ?? 1));
-    const existing = data.placements.find(
-      (item) =>
-        item.boxId === input.boxId &&
-        item.row === input.row &&
-        item.print === input.print &&
-        item.rare === input.rare,
-    );
-    if (existing) {
-      existing.quantity += quantity;
-      if (input.notes) existing.notes = input.notes;
-      return;
+    const notes = input.notes?.trim() ?? "";
+    const addedAt = new Date().toISOString();
+
+    for (const item of input.items) {
+      const print = item.print.trim();
+      const rare = item.rare.trim();
+      if (!print || !rare) continue;
+      const quantity = Math.max(1, Math.floor(item.quantity ?? 1));
+      const existing = data.placements.find(
+        (entry) =>
+          entry.boxId === input.boxId &&
+          entry.row === input.row &&
+          entry.print === print &&
+          entry.rare === rare,
+      );
+      if (existing) {
+        existing.quantity += quantity;
+        if (notes) existing.notes = notes;
+        continue;
+      }
+      data.placements.push({
+        id: crypto.randomUUID(),
+        boxId: input.boxId,
+        row: input.row,
+        print,
+        rare,
+        quantity,
+        notes,
+        addedAt,
+      });
     }
-    const placement: Placement = {
-      id: crypto.randomUUID(),
-      boxId: input.boxId,
-      row: input.row,
-      print: input.print,
-      rare: input.rare,
-      quantity,
-      notes: input.notes?.trim() ?? "",
-      addedAt: new Date().toISOString(),
-    };
-    data.placements.push(placement);
   });
 }
 

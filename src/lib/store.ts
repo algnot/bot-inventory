@@ -57,6 +57,15 @@ export function addPlacement(input: {
   return backend().addPlacement(input);
 }
 
+export function addPlacements(input: {
+  boxId: string;
+  row: number;
+  notes?: string;
+  items: Array<{ print: string; rare: string; quantity?: number }>;
+}) {
+  return backend().addPlacements(input);
+}
+
 export function updatePlacement(
   id: string,
   patch: Partial<Pick<Placement, "row" | "boxId" | "quantity" | "notes">>,

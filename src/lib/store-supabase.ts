@@ -171,6 +171,23 @@ export async function addPlacement(input: {
   quantity?: number;
   notes?: string;
 }) {
+  return addPlacements({
+    boxId: input.boxId,
+    row: input.row,
+    notes: input.notes,
+    items: [{ print: input.print, rare: input.rare, quantity: input.quantity }],
+  });
+}
+
+export async function addPlacements(input: {
+  boxId: string;
+  row: number;
+  notes?: string;
+  items: Array<{ print: string; rare: string; quantity?: number }>;
+}) {
+  const items = input.items.filter((item) => item.print.trim() && item.rare.trim());
+  if (!items.length) throw new Error("เลือกการ์ดก่อน");
+
   const supabase = getSupabase();
   const { data: box, error: boxError } = await supabase
     .from("boxes")
@@ -181,40 +198,83 @@ export async function addPlacement(input: {
   if (!box) throw new Error("ไม่พบกล่อง");
   if (input.row < 1 || input.row > box.rows) throw new Error("แถวไม่ถูกต้อง");
 
-  const quantity = Math.max(1, Math.floor(input.quantity ?? 1));
   const notes = input.notes?.trim() ?? "";
-
-  const { data: existing, error: findError } = await supabase
+  const { data: existingRows, error: findError } = await supabase
     .from("placements")
     .select("*")
     .eq("box_id", input.boxId)
-    .eq("row", input.row)
-    .eq("print", input.print)
-    .eq("rare", input.rare)
-    .maybeSingle();
+    .eq("row", input.row);
   if (findError) fail(findError);
 
-  if (existing) {
-    const { error } = await supabase
-      .from("placements")
-      .update({
-        quantity: existing.quantity + quantity,
-        notes: notes || existing.notes,
-      })
-      .eq("id", existing.id);
-    if (error) fail(error);
-    return loadStore();
+  const existingMap = new Map(
+    ((existingRows ?? []) as PlacementRow[]).map((row) => [
+      `${row.print}::${row.rare}`,
+      row,
+    ]),
+  );
+
+  const qtyByKey = new Map<string, { print: string; rare: string; quantity: number }>();
+  for (const item of items) {
+    const print = item.print.trim();
+    const rare = item.rare.trim();
+    const key = `${print}::${rare}`;
+    const quantity = Math.max(1, Math.floor(item.quantity ?? 1));
+    const prev = qtyByKey.get(key);
+    qtyByKey.set(key, {
+      print,
+      rare,
+      quantity: (prev?.quantity ?? 0) + quantity,
+    });
   }
 
-  const { error } = await supabase.from("placements").insert({
-    box_id: input.boxId,
-    row: input.row,
-    print: input.print,
-    rare: input.rare,
-    quantity,
-    notes,
-  });
-  if (error) fail(error);
+  const updates: Array<{ id: string; quantity: number; notes: string }> = [];
+  const inserts: Array<{
+    box_id: string;
+    row: number;
+    print: string;
+    rare: string;
+    quantity: number;
+    notes: string;
+  }> = [];
+
+  for (const item of qtyByKey.values()) {
+    const existing = existingMap.get(`${item.print}::${item.rare}`);
+    if (existing) {
+      updates.push({
+        id: existing.id,
+        quantity: existing.quantity + item.quantity,
+        notes: notes || existing.notes,
+      });
+    } else {
+      inserts.push({
+        box_id: input.boxId,
+        row: input.row,
+        print: item.print,
+        rare: item.rare,
+        quantity: item.quantity,
+        notes,
+      });
+    }
+  }
+
+  if (updates.length) {
+    const results = await Promise.all(
+      updates.map((item) =>
+        supabase
+          .from("placements")
+          .update({ quantity: item.quantity, notes: item.notes })
+          .eq("id", item.id),
+      ),
+    );
+    const updateError = results.find((result) => result.error)?.error;
+    if (updateError) fail(updateError);
+  }
+
+  if (inserts.length) {
+    const { error } = await supabase.from("placements").insert(inserts);
+    if (error) fail(error);
+  }
+
   return loadStore();
 }
 
