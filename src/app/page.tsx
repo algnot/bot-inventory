@@ -170,6 +170,7 @@ export default function HomePage() {
                 quantity: item.quantity,
                 boxId: item.boxId,
                 boxName: item.box.name,
+                row: item.row,
               },
             ]);
           }}

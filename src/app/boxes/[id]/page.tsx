@@ -76,14 +76,11 @@ export default function BoxDetailPage() {
       quantity: item.quantity,
       boxId: item.boxId,
       boxName: box?.name ?? "",
+      row: item.row,
     };
   }
 
   function startPicking() {
-    if (!canEditBox(box, state?.unlockedBoxIds)) {
-      requestUnlock(box?.id, box?.name);
-      return;
-    }
     setDetail(null);
     setPicking(true);
     setPicked([]);

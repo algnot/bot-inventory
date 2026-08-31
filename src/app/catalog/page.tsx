@@ -249,6 +249,7 @@ export default function CatalogPage() {
                 quantity: item.quantity,
                 boxId: item.boxId,
                 boxName: item.box.name,
+                row: item.row,
               },
             ]);
           }}
