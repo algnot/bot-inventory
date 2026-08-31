@@ -338,7 +338,7 @@ export function PlaceModal({
                 placeholder="ค้นหาชื่อการ์ด หรือรหัสเช่น BT01-001"
                 className="h-11 w-full shrink-0 rounded-xl border-2 border-ink bg-white px-3 outline-none focus:ring-2 focus:ring-ink/30"
               />
-              <div className="mt-3 grid min-h-0 flex-1 grid-cols-3 content-start gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-5">
+              <div className="mt-3 grid min-h-0 flex-1 grid-cols-3 items-start content-start gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-5">
                 {results.map((card) => {
                   const qty = qtyOf(card);
                   return (
@@ -346,7 +346,7 @@ export function PlaceModal({
                       type="button"
                       key={cardKey(card.print, card.rare)}
                       onClick={() => addCard(card)}
-                      className={`relative overflow-hidden rounded-lg border-2 ${
+                      className={`relative aspect-[249/339] w-full overflow-hidden rounded-lg border-2 ${
                         qty > 0 ? "border-bot-red" : "border-ink/30 hover:border-ink"
                       }`}
                     >
@@ -355,7 +355,12 @@ export function PlaceModal({
                           ×{qty}
                         </span>
                       )}
-                      <CardImage print={card.print} rare={card.rare} name={card.name} />
+                      <CardImage
+                        print={card.print}
+                        rare={card.rare}
+                        name={card.name}
+                        className="h-full w-full object-cover"
+                      />
                     </button>
                   );
                 })}
