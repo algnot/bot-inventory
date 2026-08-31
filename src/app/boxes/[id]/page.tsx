@@ -5,11 +5,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
-import { ReadOnlyBanner } from "@/components/lock-button";
+import { BoxPinButton, ReadOnlyBanner } from "@/components/lock-button";
 import { PlaceModal } from "@/components/place-modal";
 import { cardKey } from "@/lib/types";
 import type { Card, LocatedCard, Placement } from "@/lib/types";
-import { canEdit, requestUnlock, throwIfApiError } from "@/lib/lock-client";
+import { canEditBox, requestUnlock, throwIfApiError } from "@/lib/lock-client";
 import { personName } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
 import { useCatalog } from "@/lib/use-catalog";
@@ -55,8 +55,8 @@ export default function BoxDetailPage() {
   }, [state?.placements, params.id]);
 
   async function remove(id: string) {
-    if (!canEdit(state?.lock)) {
-      requestUnlock();
+    if (!canEditBox(box, state?.unlockedBoxIds)) {
+      requestUnlock(box?.id, box?.name);
       return;
     }
     try {
@@ -121,7 +121,7 @@ export default function BoxDetailPage() {
     );
   }
 
-  const editable = canEdit(state.lock);
+  const editable = canEditBox(box, state.unlockedBoxIds);
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">
@@ -137,28 +137,31 @@ export default function BoxDetailPage() {
               : `${box.rows} แถว แบบรางยาว`}
           </p>
         </div>
-        {editable && (
-        <button
-          type="button"
-          onClick={async () => {
-            if (!confirm(`ลบกล่อง “${box.name}” และการ์ดทั้งหมดในกล่องนี้?`)) return;
-            const res = await fetch(`/api/boxes/${box.id}`, { method: "DELETE" });
-            const data = await res.json().catch(() => null);
-            try {
-              throwIfApiError(res, data, "ลบกล่องไม่สำเร็จ");
-            } catch {
-              return;
-            }
-            window.location.href = "/boxes";
-          }}
-          className="self-start rounded-full border-2 border-ink px-3 py-1 text-sm font-bold hover:bg-bot-red hover:text-white"
-        >
-          ลบกล่อง
-        </button>
-        )}
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <BoxPinButton box={box} unlockedBoxIds={state.unlockedBoxIds} />
+          {editable && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirm(`ลบกล่อง “${box.name}” และการ์ดทั้งหมดในกล่องนี้?`)) return;
+                const res = await fetch(`/api/boxes/${box.id}`, { method: "DELETE" });
+                const data = await res.json().catch(() => null);
+                try {
+                  throwIfApiError(res, data, "ลบกล่องไม่สำเร็จ");
+                } catch {
+                  return;
+                }
+                window.location.href = "/boxes";
+              }}
+              className="self-start rounded-full border-2 border-ink px-3 py-1 text-sm font-bold hover:bg-bot-red hover:text-white"
+            >
+              ลบกล่อง
+            </button>
+          )}
+        </div>
       </div>
 
-      <ReadOnlyBanner lock={state.lock} />
+      <ReadOnlyBanner box={box} unlockedBoxIds={state.unlockedBoxIds} />
 
       {editable && (
       <form
@@ -269,7 +272,7 @@ export default function BoxDetailPage() {
                   type="button"
                   onClick={() => {
                     if (!editable) {
-                      requestUnlock();
+                      requestUnlock(box.id, box.name);
                       return;
                     }
                     setPlaceRow(row);
@@ -288,6 +291,7 @@ export default function BoxDetailPage() {
         <PlaceModal
           boxes={state.boxes}
           people={state.people}
+          unlockedBoxIds={state.unlockedBoxIds}
           cards={catalog}
           boxId={box.id}
           row={placeRow}

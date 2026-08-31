@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LockButton } from "./lock-button";
+import { BoxUnlockModal } from "./lock-button";
 import { SyncButton } from "./sync-button";
 
 const NAV = [
@@ -16,6 +16,7 @@ export function Header() {
   const pathname = usePathname();
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b-4 border-ink bg-ink text-cream pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-3 py-3 sm:px-4 md:flex-row md:items-center md:gap-4">
         <Link href="/" className="shrink-0 leading-tight">
@@ -45,10 +46,11 @@ export function Header() {
               </Link>
             );
           })}
-          <LockButton />
           <SyncButton />
         </nav>
       </div>
     </header>
+    <BoxUnlockModal />
+    </>
   );
 }

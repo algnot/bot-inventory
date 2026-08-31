@@ -14,7 +14,8 @@ create table if not exists boxes (
   rows integer not null default 4 check (rows >= 1 and rows <= 40),
   notes text not null default '',
   owner_id uuid references people (id) on delete set null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  pin_hash text
 );
 
 create table if not exists placements (
@@ -34,8 +35,7 @@ create table if not exists catalog_meta (
   synced_at timestamptz,
   count integer not null default 0,
   last_added integer not null default 0,
-  last_new_cards jsonb not null default '[]'::jsonb,
-  pin_hash text
+  last_new_cards jsonb not null default '[]'::jsonb
 );
 
 insert into catalog_meta (id)

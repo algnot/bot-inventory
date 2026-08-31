@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { denyIfLocked } from "@/lib/lock";
 import { createPerson, getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -11,8 +10,6 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const denied = await denyIfLocked();
-  if (denied) return denied;
   try {
     const body = await request.json();
     const store = await createPerson(String(body.name ?? ""), String(body.notes ?? ""));

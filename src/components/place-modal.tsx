@@ -7,7 +7,7 @@ import { CardImage } from "./card-image";
 import { RarityBadge } from "./rarity-badge";
 import { searchCards } from "@/lib/catalog-search";
 import { personName } from "@/lib/labels";
-import { throwIfApiError } from "@/lib/lock-client";
+import { canEditBox, requestUnlock, throwIfApiError } from "@/lib/lock-client";
 
 type SelectedItem = {
   card: Card;
@@ -49,6 +49,7 @@ function QtyStepper({
 export function PlaceModal({
   boxes,
   people = [],
+  unlockedBoxIds = [],
   cards,
   card: lockedCard,
   boxId: defaultBoxId,
@@ -58,6 +59,7 @@ export function PlaceModal({
 }: {
   boxes: Box[];
   people?: Person[];
+  unlockedBoxIds?: string[];
   cards: Card[];
   card?: Card | null;
   boxId?: string;
@@ -139,6 +141,12 @@ export function PlaceModal({
       setError("สร้างกล่องก่อน");
       return;
     }
+    const dest = boxes.find((item) => item.id === boxId);
+    if (!canEditBox(dest, unlockedBoxIds)) {
+      requestUnlock(dest?.id, dest?.name);
+      setError(dest ? `ใส่รหัสกล่อง “${dest.name}” ก่อนบันทึก` : "ใส่รหัสกล่องก่อนบันทึก");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -191,6 +199,7 @@ export function PlaceModal({
                   {personName(people, item.ownerId)
                     ? ` · ของ${personName(people, item.ownerId)}`
                     : ""}
+                  {item.pinEnabled ? " · มีรหัส" : ""}
                 </option>
               ))}
             </select>
@@ -218,6 +227,15 @@ export function PlaceModal({
             />
           </label>
         </div>
+      )}
+      {box && box.pinEnabled && !canEditBox(box, unlockedBoxIds) && (
+        <button
+          type="button"
+          onClick={() => requestUnlock(box.id, box.name)}
+          className="text-sm font-extrabold underline"
+        >
+          ใส่รหัสกล่อง “{box.name}” ก่อนบันทึก
+        </button>
       )}
     </>
   );
@@ -284,7 +302,7 @@ export function PlaceModal({
             <h2 className="text-xl font-extrabold">ใส่การ์ดลงแถว</h2>
             {!lockedCard && (
               <p className="mt-0.5 text-sm text-muted">
-                กดการ์ดซ้ำเพื่อเพิ่มจำนวน แล้วบันทึกครั้งเดียว
+                กดเพิ่มการ์ดและบันทึก
               </p>
             )}
           </div>

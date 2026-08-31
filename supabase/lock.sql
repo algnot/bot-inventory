@@ -1,2 +1,2 @@
--- เก็บรหัสล็อกไว้ใน catalog_meta (hashed)
-alter table catalog_meta add column if not exists pin_hash text;
+-- รหัสล็อกต่อกล่อง (hashed) — แต่ละกล่องตั้งรหัสเองได้
+alter table boxes add column if not exists pin_hash text;

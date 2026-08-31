@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
-import { ReadOnlyBanner } from "@/components/lock-button";
 import { MultiFilter } from "@/components/multi-filter";
 import { Pagination } from "@/components/pagination";
 import { PlaceModal } from "@/components/place-modal";
@@ -11,7 +10,6 @@ import { RarityBadge } from "@/components/rarity-badge";
 import { searchCards } from "@/lib/catalog-search";
 import { displayRare } from "@/lib/image";
 import { personName, typeLabel } from "@/lib/labels";
-import { canEdit } from "@/lib/lock-client";
 import { seriesCode, seriesLabel } from "@/lib/series";
 import { cardKey } from "@/lib/types";
 import type { Box, Card, LocatedCard, Person, Placement } from "@/lib/types";
@@ -99,7 +97,6 @@ export default function CatalogPage() {
         {state?.storage === "supabase" ? " · คลาวด์" : ""}
       </p>
       {error && <p className="mt-3 font-bold text-bot-red">{error}</p>}
-      {state && <ReadOnlyBanner lock={state.lock} />}
       {state?.meta.lastAdded ? (
         <p className="mt-2 rounded-xl border-2 border-ink bg-gold/40 px-3 py-2 text-sm font-bold">
           ซิงก์รอบล่าสุดมีการ์ดใหม่ {state.meta.lastAdded} ใบ
@@ -236,14 +233,10 @@ export default function CatalogPage() {
             state?.people ?? [],
           )}
           onClose={() => setSelected(null)}
-          onPlace={
-            canEdit(state?.lock)
-              ? (card) => {
-                  setSelected(null);
-                  setPlaceCard(card);
-                }
-              : undefined
-          }
+          onPlace={(card) => {
+            setSelected(null);
+            setPlaceCard(card);
+          }}
         />
       )}
 
@@ -251,6 +244,7 @@ export default function CatalogPage() {
         <PlaceModal
           boxes={state?.boxes ?? []}
           people={state?.people ?? []}
+          unlockedBoxIds={state?.unlockedBoxIds ?? []}
           cards={cards}
           card={placeCard}
           onClose={() => setPlaceCard(null)}

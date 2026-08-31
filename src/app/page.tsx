@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
-import { ReadOnlyBanner } from "@/components/lock-button";
 import { PlaceModal } from "@/components/place-modal";
 import { RarityBadge } from "@/components/rarity-badge";
-import { canEdit, requestUnlock } from "@/lib/lock-client";
 import { locationLabel } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
 import { catalogVersion, loadCatalogClient } from "@/lib/catalog-client";
@@ -31,16 +29,10 @@ export default function HomePage() {
   }
 
   async function openPlace(card: Card | null = null) {
-    if (!canEdit(state?.lock)) {
-      requestUnlock();
-      return;
-    }
     await ensureCatalog();
     setPlaceCard(card);
     setPlaceOpen(true);
   }
-
-  const editable = canEdit(state?.lock);
 
   const ownedCount =
     state?.placements.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
@@ -63,7 +55,7 @@ export default function HomePage() {
             onClick={() => void openPlace()}
             className="rounded-full border-2 border-ink bg-ink px-5 py-3 font-extrabold text-cream"
           >
-            {editable ? "เพิ่มการ์ดลงกล่อง" : "ใส่รหัสเพื่อเพิ่มการ์ด"}
+            เพิ่มการ์ดลงกล่อง
           </button>
         </div>
         <div className="mt-4 flex flex-wrap gap-3 text-sm font-semibold">
@@ -80,7 +72,6 @@ export default function HomePage() {
       </div>
 
       {error && <p className="mt-6 font-bold text-bot-red">{error}</p>}
-      {state && <ReadOnlyBanner lock={state.lock} />}
 
       {loading && !state && <p className="mt-6 text-muted">กำลังโหลด...</p>}
 
@@ -162,6 +153,7 @@ export default function HomePage() {
         <PlaceModal
           boxes={state?.boxes ?? []}
           people={state?.people ?? []}
+          unlockedBoxIds={state?.unlockedBoxIds ?? []}
           cards={catalog}
           card={placeCard}
           onClose={() => {

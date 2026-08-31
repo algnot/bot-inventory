@@ -36,6 +36,8 @@ export type Box = {
   notes: string;
   ownerId: string | null;
   createdAt: string;
+  pinHash: string | null;
+  pinEnabled: boolean;
 };
 
 export type Placement = {
@@ -58,7 +60,6 @@ export type CatalogMeta = {
 
 export type StoreData = {
   meta: CatalogMeta;
-  pinHash: string | null;
   people: Person[];
   boxes: Box[];
   placements: Placement[];
@@ -74,6 +75,19 @@ export type LocatedCard = Placement & {
   box: Box;
   ownerName: string | null;
 };
+
+export function publicBox(box: Box): Box {
+  return {
+    id: box.id,
+    name: box.name,
+    rows: box.rows,
+    notes: box.notes,
+    ownerId: box.ownerId,
+    createdAt: box.createdAt,
+    pinEnabled: Boolean(box.pinHash),
+    pinHash: null,
+  };
+}
 
 export function cardKey(print: string, rare: string) {
   return `${print}::${rare}`;

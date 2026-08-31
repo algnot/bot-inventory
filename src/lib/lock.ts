@@ -1,16 +1,11 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { getStore, setPinHash } from "@/lib/store";
-import type { LockState } from "@/lib/types";
+import { getStore, setBoxPinHash } from "@/lib/store";
+import type { Box, LockState } from "@/lib/types";
 
-const COOKIE = "bot_edit";
+const COOKIE = "bot_box_edit";
 const MAX_AGE = 60 * 60 * 24 * 7;
-const ENV_SALT = "bot-inventory-pin-v1";
-
-function envPin() {
-  return process.env.INVENTORY_PIN?.trim() || "";
-}
 
 function hashWithSalt(pin: string, salt: string) {
   return scryptSync(pin, salt, 32).toString("hex");
@@ -33,45 +28,8 @@ function verifyStoredPin(pin: string, stored: string) {
   return timingSafeEqual(left, right);
 }
 
-function safeEqual(a: string, b: string) {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  if (left.length !== right.length) return false;
-  return timingSafeEqual(left, right);
-}
-
-export function lockSecret(pinHash: string | null) {
-  if (pinHash) return pinHash;
-  const pin = envPin();
-  if (!pin) return null;
-  return `env:${hashWithSalt(pin, ENV_SALT)}`;
-}
-
-export function lockEnabled(pinHash: string | null) {
-  return Boolean(lockSecret(pinHash));
-}
-
 function sign(secret: string, payload: string) {
   return createHmac("sha256", secret).update(payload).digest("hex");
-}
-
-function makeToken(secret: string) {
-  const exp = Date.now() + MAX_AGE * 1000;
-  const payload = String(exp);
-  return `${payload}.${sign(secret, payload)}`;
-}
-
-function tokenValid(token: string, secret: string) {
-  const sep = token.lastIndexOf(".");
-  if (sep < 1) return false;
-  const payload = token.slice(0, sep);
-  const sig = token.slice(sep + 1);
-  const expected = sign(secret, payload);
-  const left = Buffer.from(sig);
-  const right = Buffer.from(expected);
-  if (left.length !== right.length || !timingSafeEqual(left, right)) return false;
-  const exp = Number(payload);
-  return Number.isFinite(exp) && exp > Date.now();
 }
 
 function cookieOptions() {
@@ -84,81 +42,142 @@ function cookieOptions() {
   };
 }
 
-export async function getLockStatus(pinHash: string | null): Promise<LockState> {
-  const secret = lockSecret(pinHash);
-  if (!secret) return { enabled: false, unlocked: true };
-  const jar = await cookies();
-  const token = jar.get(COOKIE)?.value ?? "";
-  return { enabled: true, unlocked: tokenValid(token, secret) };
+type SessionToken = { id: string; exp: number; sig: string };
+
+function parseCookie(value: string): SessionToken[] {
+  if (!value) return [];
+  return value.split("|").flatMap((part) => {
+    const [id, expRaw, sig] = part.split(":");
+    const exp = Number(expRaw);
+    if (!id || !sig || !Number.isFinite(exp)) return [];
+    return [{ id, exp, sig }];
+  });
 }
 
-export async function denyIfLocked() {
+function serializeCookie(tokens: SessionToken[]) {
+  return tokens.map((item) => `${item.id}:${item.exp}:${item.sig}`).join("|");
+}
+
+function tokenFor(boxId: string, pinHash: string): SessionToken {
+  const exp = Date.now() + MAX_AGE * 1000;
+  const payload = `${boxId}.${exp}`;
+  return { id: boxId, exp, sig: sign(pinHash, payload) };
+}
+
+function tokenValid(token: SessionToken, pinHash: string) {
+  if (token.exp <= Date.now()) return false;
+  const expected = sign(pinHash, `${token.id}.${token.exp}`);
+  const left = Buffer.from(token.sig);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+async function readTokens() {
+  const jar = await cookies();
+  return parseCookie(jar.get(COOKIE)?.value ?? "");
+}
+
+async function writeTokens(tokens: SessionToken[]) {
+  const jar = await cookies();
+  const alive = tokens.filter((item) => item.exp > Date.now());
+  if (!alive.length) {
+    jar.set(COOKIE, "", { ...cookieOptions(), maxAge: 0 });
+    return;
+  }
+  jar.set(COOKIE, serializeCookie(alive), cookieOptions());
+}
+
+export function getBoxLockStatus(box: Box, tokens: SessionToken[]): LockState {
+  if (!box.pinHash) return { enabled: false, unlocked: true };
+  const token = tokens.find((item) => item.id === box.id);
+  return {
+    enabled: true,
+    unlocked: Boolean(token && tokenValid(token, box.pinHash)),
+  };
+}
+
+export async function getLockForBox(box: Box): Promise<LockState> {
+  const tokens = await readTokens();
+  return getBoxLockStatus(box, tokens);
+}
+
+export async function getUnlockedBoxIds(boxes: Box[]) {
+  const tokens = await readTokens();
+  return boxes
+    .filter((box) => Boolean(box.pinHash) && getBoxLockStatus(box, tokens).unlocked)
+    .map((box) => box.id);
+}
+
+export async function denyIfLocked(boxId: string) {
   const store = await getStore();
-  const status = await getLockStatus(store.pinHash);
+  const box = store.boxes.find((item) => item.id === boxId);
+  if (!box) {
+    return NextResponse.json({ error: "ไม่พบกล่อง" }, { status: 400 });
+  }
+  const tokens = await readTokens();
+  const status = getBoxLockStatus(box, tokens);
   if (status.enabled && !status.unlocked) {
     return NextResponse.json(
-      { error: "ต้องใส่รหัสก่อนแก้ไขกล่อง", code: "LOCKED" },
+      {
+        error: `ต้องใส่รหัสกล่อง “${box.name}” ก่อนแก้ไข`,
+        code: "LOCKED",
+        boxId: box.id,
+        boxName: box.name,
+      },
       { status: 403 },
     );
   }
   return null;
 }
 
-export async function unlockWithPin(pin: string) {
+export async function unlockBox(boxId: string, pin: string) {
   const trimmed = pin.trim();
   if (!trimmed) throw new Error("ใส่รหัสก่อน");
   const store = await getStore();
-  const ok = store.pinHash
-    ? verifyStoredPin(trimmed, store.pinHash)
-    : envPin()
-      ? safeEqual(trimmed, envPin())
-      : false;
-  if (!ok) throw new Error("รหัสไม่ถูกต้อง");
-  const secret = lockSecret(store.pinHash);
-  if (!secret) throw new Error("ยังไม่ได้ตั้งรหัส");
-  const jar = await cookies();
-  jar.set(COOKIE, makeToken(secret), cookieOptions());
+  const box = store.boxes.find((item) => item.id === boxId);
+  if (!box) throw new Error("ไม่พบกล่อง");
+  if (!box.pinHash) throw new Error("กล่องนี้ยังไม่ได้ตั้งรหัส");
+  if (!verifyStoredPin(trimmed, box.pinHash)) throw new Error("รหัสไม่ถูกต้อง");
+  const tokens = (await readTokens()).filter((item) => item.id !== box.id);
+  tokens.push(tokenFor(box.id, box.pinHash));
+  await writeTokens(tokens);
   return { enabled: true, unlocked: true } satisfies LockState;
 }
 
-export async function lockSession() {
-  const jar = await cookies();
-  jar.set(COOKIE, "", { ...cookieOptions(), maxAge: 0 });
+export async function lockBox(boxId: string) {
+  const tokens = (await readTokens()).filter((item) => item.id !== boxId);
+  await writeTokens(tokens);
 }
 
-export async function setLockPin(pin: string, currentPin?: string) {
+export async function setBoxPin(boxId: string, pin: string, currentPin = "") {
   const trimmed = pin.trim();
   if (trimmed.length < 4) throw new Error("รหัสอย่างน้อย 4 ตัว");
   if (trimmed.length > 64) throw new Error("รหัสยาวเกินไป");
   const store = await getStore();
-  const enabled = lockEnabled(store.pinHash);
-  if (enabled) {
-    const status = await getLockStatus(store.pinHash);
-    const current = (currentPin ?? "").trim();
-    const currentOk = store.pinHash
-      ? verifyStoredPin(current, store.pinHash)
-      : envPin()
-        ? safeEqual(current, envPin())
-        : false;
-    if (!status.unlocked && !currentOk) throw new Error("ใส่รหัสปัจจุบันก่อน");
+  const box = store.boxes.find((item) => item.id === boxId);
+  if (!box) throw new Error("ไม่พบกล่อง");
+  if (box.pinHash) {
+    const tokens = await readTokens();
+    const unlocked = getBoxLockStatus(box, tokens).unlocked;
+    const currentOk = verifyStoredPin(currentPin.trim(), box.pinHash);
+    if (!unlocked && !currentOk) throw new Error("ใส่รหัสปัจจุบันของกล่องนี้ก่อน");
   }
   const hash = hashPin(trimmed);
-  await setPinHash(hash);
-  const jar = await cookies();
-  jar.set(COOKIE, makeToken(hash), cookieOptions());
+  await setBoxPinHash(boxId, hash);
+  const tokens = (await readTokens()).filter((item) => item.id !== boxId);
+  tokens.push(tokenFor(boxId, hash));
+  await writeTokens(tokens);
   return { enabled: true, unlocked: true } satisfies LockState;
 }
 
-export async function clearLockPin(currentPin: string) {
+export async function clearBoxPin(boxId: string, currentPin: string) {
   const store = await getStore();
-  if (envPin() && !store.pinHash) {
-    throw new Error("รหัสนี้อยู่ในเครื่องเซิร์ฟเวอร์ ลบ INVENTORY_PIN จาก .env เอง");
-  }
-  if (!store.pinHash) throw new Error("ยังไม่ได้ตั้งรหัส");
-  if (!verifyStoredPin(currentPin.trim(), store.pinHash)) {
-    throw new Error("รหัสไม่ถูกต้อง");
-  }
-  await setPinHash(null);
-  await lockSession();
-  return { enabled: lockEnabled(null), unlocked: !lockEnabled(null) } satisfies LockState;
+  const box = store.boxes.find((item) => item.id === boxId);
+  if (!box) throw new Error("ไม่พบกล่อง");
+  if (!box.pinHash) throw new Error("กล่องนี้ยังไม่ได้ตั้งรหัส");
+  if (!verifyStoredPin(currentPin.trim(), box.pinHash)) throw new Error("รหัสไม่ถูกต้อง");
+  await setBoxPinHash(boxId, null);
+  await lockBox(boxId);
+  return { enabled: false, unlocked: true } satisfies LockState;
 }

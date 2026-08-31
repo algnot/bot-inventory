@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import { denyIfLocked } from "@/lib/lock";
 import { createBox, getStore } from "@/lib/store";
+import { publicBox } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const store = await getStore();
-  return NextResponse.json({ boxes: store.boxes });
+  return NextResponse.json({ boxes: store.boxes.map(publicBox) });
 }
 
 export async function POST(request: Request) {
-  const denied = await denyIfLocked();
-  if (denied) return denied;
   try {
     const body = await request.json();
     const store = await createBox({
@@ -21,7 +19,7 @@ export async function POST(request: Request) {
       notes: String(body.notes ?? ""),
       ownerId: body.ownerId ? String(body.ownerId) : null,
     });
-    return NextResponse.json({ boxes: store.boxes });
+    return NextResponse.json({ boxes: store.boxes.map(publicBox) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "สร้างกล่องไม่สำเร็จ";
     return NextResponse.json({ error: message }, { status: 400 });

@@ -6,14 +6,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const denied = await denyIfLocked();
-  if (denied) return denied;
   try {
     const body = await request.json();
+    const boxId = String(body.boxId ?? "");
+    const denied = await denyIfLocked(boxId);
+    if (denied) return denied;
     const items = Array.isArray(body.items) ? body.items : null;
     const store = items
       ? await addPlacements({
-          boxId: String(body.boxId ?? ""),
+          boxId,
           row: Number(body.row),
           notes: String(body.notes ?? ""),
           items: items.map((item: { print?: string; rare?: string; quantity?: number }) => ({
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
           })),
         })
       : await addPlacement({
-          boxId: String(body.boxId ?? ""),
+          boxId,
           row: Number(body.row),
           print: String(body.print ?? ""),
           rare: String(body.rare ?? ""),

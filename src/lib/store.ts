@@ -81,6 +81,6 @@ export function setCatalogMeta(meta: CatalogMeta) {
   return backend().setCatalogMeta(meta);
 }
 
-export function setPinHash(pinHash: string | null) {
-  return backend().setPinHash(pinHash);
+export function setBoxPinHash(id: string, pinHash: string | null) {
+  return backend().setBoxPinHash(id, pinHash);
 }

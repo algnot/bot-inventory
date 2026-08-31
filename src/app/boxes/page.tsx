@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ReadOnlyBanner } from "@/components/lock-button";
-import { canEdit, requestUnlock, throwIfApiError } from "@/lib/lock-client";
+import { throwIfApiError } from "@/lib/lock-client";
 import { personName } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
 
@@ -44,7 +43,6 @@ export default function BoxesPage() {
   }
 
   const people = state?.people ?? [];
-  const editable = canEdit(state?.lock);
   const grouped = [
     ...people.map((person) => ({
       id: person.id,
@@ -61,9 +59,7 @@ export default function BoxesPage() {
   return (
     <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">
       <h1 className="text-2xl font-black sm:text-3xl">กล่องทั้งหมด</h1>
-      {state && <ReadOnlyBanner lock={state.lock} />}
 
-      {editable ? (
       <form
         onSubmit={(event) => void createBox(event)}
         className="mt-5 grid items-end gap-3 rounded-2xl border-4 border-ink bg-cream p-3 sm:grid-cols-2 sm:p-4 md:grid-cols-[1fr_160px_110px_auto]"
@@ -135,15 +131,6 @@ export default function BoxesPage() {
           </p>
         )}
       </form>
-      ) : (
-        <button
-          type="button"
-          onClick={() => requestUnlock()}
-          className="mt-5 rounded-2xl border-4 border-ink bg-cream px-4 py-3 text-sm font-extrabold"
-        >
-          ใส่รหัสเพื่อสร้างกล่อง
-        </button>
-      )}
 
       {loadError && <p className="mt-6 font-bold text-bot-red">{loadError}</p>}
 
@@ -160,7 +147,14 @@ export default function BoxesPage() {
                   href={`/boxes/${box.id}`}
                   className="rounded-2xl border-2 border-ink bg-cream p-4 hover:bg-white"
                 >
-                  <h3 className="text-xl font-extrabold">{box.name}</h3>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-xl font-extrabold">{box.name}</h3>
+                    {box.pinEnabled && (
+                      <span className="shrink-0 rounded-full border-2 border-ink bg-gold px-2 py-0.5 text-[11px] font-black">
+                        มีรหัส
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-1 text-sm text-muted">
                     {personName(people, box.ownerId)
                       ? `ของ${personName(people, box.ownerId)} · ${box.rows} แถว`

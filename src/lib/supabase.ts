@@ -60,6 +60,7 @@ export type BoxRow = {
   notes: string;
   owner_id: string | null;
   created_at: string;
+  pin_hash?: string | null;
 };
 
 export type PlacementRow = {
@@ -99,6 +100,8 @@ export function mapBox(row: BoxRow): Box {
     notes: row.notes ?? "",
     ownerId: row.owner_id,
     createdAt: row.created_at,
+    pinHash: row.pin_hash ?? null,
+    pinEnabled: Boolean(row.pin_hash),
   };
 }
 

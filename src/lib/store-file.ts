@@ -15,7 +15,6 @@ const emptyMeta = (): CatalogMeta => ({
 
 const emptyStore = (): StoreData => ({
   meta: emptyMeta(),
-  pinHash: null,
   people: [],
   boxes: [],
   placements: [],
@@ -38,6 +37,8 @@ function migrateBox(raw: Box & { slotsPerRow?: number }): Box {
     notes: raw.notes ?? "",
     ownerId: raw.ownerId ?? null,
     createdAt: raw.createdAt,
+    pinHash: raw.pinHash ?? null,
+    pinEnabled: Boolean(raw.pinHash),
   };
 }
 
@@ -62,7 +63,6 @@ async function readStore(): Promise<StoreData> {
     const data = JSON.parse(raw) as StoreData;
     return {
       meta: { ...emptyMeta(), ...data.meta },
-      pinHash: data.pinHash ?? null,
       people: (data.people ?? []).map(migratePerson),
       boxes: (data.boxes ?? []).map(migrateBox),
       placements: (data.placements ?? []).map(migratePlacement),
@@ -162,6 +162,8 @@ export function createBox(input: {
       notes: input.notes?.trim() ?? "",
       ownerId,
       createdAt: new Date().toISOString(),
+      pinHash: null,
+      pinEnabled: false,
     };
     data.boxes.push(box);
   });
@@ -306,8 +308,11 @@ export function setCatalogMeta(meta: CatalogMeta) {
   });
 }
 
-export function setPinHash(pinHash: string | null) {
+export function setBoxPinHash(id: string, pinHash: string | null) {
   return updateStore((data) => {
-    data.pinHash = pinHash;
+    const box = data.boxes.find((item) => item.id === id);
+    if (!box) throw new Error("ไม่พบกล่อง");
+    box.pinHash = pinHash;
+    box.pinEnabled = Boolean(pinHash);
   });
 }
