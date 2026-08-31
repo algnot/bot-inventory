@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Box, Card, Person } from "@/lib/types";
 import { cardKey } from "@/lib/types";
 import { CardImage } from "./card-image";
@@ -82,6 +82,7 @@ export function PlaceModal({
   const [series, setSeries] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
   const [rares, setRares] = useState<string[]>([]);
+  const selectedListRef = useRef<HTMLDivElement>(null);
 
   const box = boxes.find((item) => item.id === boxId);
   const selectedCount = selected.reduce((sum, item) => sum + item.quantity, 0);
@@ -137,11 +138,11 @@ export function PlaceModal({
       const index = current.findIndex(
         (item) => item.card.print === card.print && item.card.rare === card.rare,
       );
-      if (index < 0) return [...current, { card, quantity: 1 }];
-      return current.map((item, i) =>
-        i === index ? { ...item, quantity: item.quantity + 1 } : item,
-      );
+      if (index < 0) return [{ card, quantity: 1 }, ...current];
+      const next = { ...current[index], quantity: current[index].quantity + 1 };
+      return [next, ...current.filter((_, i) => i !== index)];
     });
+    selectedListRef.current?.scrollTo({ top: 0 });
   }
 
   function bump(card: Card, delta: number) {
@@ -275,7 +276,7 @@ export function PlaceModal({
   );
 
   const selectedList = (
-    <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+    <div ref={selectedListRef} className="min-h-0 flex-1 space-y-2 overflow-y-auto">
       {selected.length === 0 ? (
         <p className="rounded-xl border-2 border-dashed border-ink/30 px-3 py-8 text-center text-sm font-medium text-muted">
           กดการ์ดจากแคตตาล็อกเพื่อเพิ่มจำนวน
@@ -452,7 +453,8 @@ export function PlaceModal({
                   </div>
                 )}
               </div>
-              <div className="mt-3 grid min-h-0 flex-1 auto-rows-max grid-cols-3 items-start content-start gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-5">
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
                 {results.length === 0 && (
                   <p className="col-span-full py-8 text-center text-sm font-medium text-muted">
                     ไม่พบการ์ดตามตัวกรอง
@@ -465,7 +467,7 @@ export function PlaceModal({
                       type="button"
                       key={cardKey(card.print, card.rare)}
                       onClick={() => addCard(card)}
-                      className={`relative block aspect-[249/339] w-full shrink-0 overflow-hidden rounded-lg border-2 ${
+                      className={`relative min-w-0 overflow-hidden rounded-lg border-2 bg-white ${
                         qty > 0 ? "border-bot-red" : "border-ink/30 hover:border-ink"
                       }`}
                     >
@@ -478,11 +480,11 @@ export function PlaceModal({
                         print={card.print}
                         rare={card.rare}
                         name={card.name}
-                        className="absolute inset-0 h-full w-full object-cover"
                       />
                     </button>
                   );
                 })}
+                </div>
               </div>
             </section>
 
