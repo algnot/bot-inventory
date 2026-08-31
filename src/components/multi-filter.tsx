@@ -98,7 +98,7 @@ export function MultiFilter({
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-2xl border-2 border-ink bg-cream">
+        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border-2 border-ink bg-cream">
           {searchable && (
             <div className="border-b-2 border-ink p-2">
               <input

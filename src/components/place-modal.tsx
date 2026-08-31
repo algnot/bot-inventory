@@ -4,10 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import type { Box, Card, Person } from "@/lib/types";
 import { cardKey } from "@/lib/types";
 import { CardImage } from "./card-image";
+import { MultiFilter } from "./multi-filter";
 import { RarityBadge } from "./rarity-badge";
 import { searchCards } from "@/lib/catalog-search";
-import { personName } from "@/lib/labels";
+import { displayRare } from "@/lib/image";
+import { personName, typeLabel } from "@/lib/labels";
 import { canEditBox, requestUnlock, throwIfApiError } from "@/lib/lock-client";
+import { seriesCode, seriesLabel } from "@/lib/series";
 
 type SelectedItem = {
   card: Card;
@@ -76,6 +79,9 @@ export function PlaceModal({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [series, setSeries] = useState<string[]>([]);
+  const [types, setTypes] = useState<string[]>([]);
+  const [rares, setRares] = useState<string[]>([]);
 
   const box = boxes.find((item) => item.id === boxId);
   const selectedCount = selected.reduce((sum, item) => sum + item.quantity, 0);
@@ -85,10 +91,38 @@ export function PlaceModal({
     if (defaultBoxId) setBoxId(defaultBoxId);
   }, [defaultBoxId, defaultRow]);
 
+  const seriesOptions = useMemo(() => {
+    return [...new Set(cards.map((card) => seriesCode(card.print)))]
+      .sort()
+      .map((code) => ({ value: code, label: seriesLabel(`${code}-000`) }));
+  }, [cards]);
+
+  const typeOptions = [
+    { value: "Avatar", label: typeLabel("Avatar") },
+    { value: "Magic", label: typeLabel("Magic") },
+    { value: "Construct", label: typeLabel("Construct") },
+    { value: "Life", label: typeLabel("Life") },
+    { value: "Token", label: typeLabel("Token") },
+  ];
+
+  const rareOptions = ["C", "R", "SR", "UR", "SCR", "PR", "CBR", "USEC"].map((item) => ({
+    value: item,
+    label: displayRare(item),
+  }));
+
+  const hasFilters = series.length > 0 || types.length > 0 || rares.length > 0;
+
   const results = useMemo(() => {
     if (lockedCard) return [lockedCard];
-    return searchCards(cards, query).slice(0, 72);
-  }, [cards, query, lockedCard]);
+    const filtered = searchCards(cards, query).filter((card) => {
+      if (series.length && !series.includes(seriesCode(card.print))) return false;
+      if (types.length && !types.includes(card.type)) return false;
+      if (rares.length && !rares.includes(card.rare)) return false;
+      return true;
+    });
+    if (query.trim() || hasFilters) return filtered;
+    return filtered.slice(0, 96);
+  }, [cards, query, lockedCard, series, types, rares, hasFilters]);
 
   function qtyOf(card: Card) {
     return (
@@ -331,14 +365,99 @@ export function PlaceModal({
           </div>
         ) : (
           <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,1.1fr)] md:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.9fr)] md:grid-rows-1">
-            <section className="flex min-h-0 flex-col border-b-4 border-ink p-3 sm:p-4 md:border-r-4 md:border-b-0">
+            <section className="flex min-h-0 flex-col overflow-visible border-b-4 border-ink p-3 sm:p-4 md:border-r-4 md:border-b-0">
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="ค้นหาชื่อการ์ด หรือรหัสเช่น BT01-001"
                 className="h-11 w-full shrink-0 rounded-xl border-2 border-ink bg-white px-3 outline-none focus:ring-2 focus:ring-ink/30"
               />
-              <div className="mt-3 grid min-h-0 flex-1 grid-cols-3 items-start content-start gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-5">
+              <div className="relative z-20 mt-2 shrink-0 space-y-2">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <MultiFilter
+                    label="ซีรีส์"
+                    allLabel="ทุกซีรีส์"
+                    options={seriesOptions}
+                    selected={series}
+                    onChange={setSeries}
+                    searchable
+                  />
+                  <MultiFilter
+                    label="ประเภท"
+                    allLabel="ทุกประเภท"
+                    options={typeOptions}
+                    selected={types}
+                    onChange={setTypes}
+                  />
+                  <MultiFilter
+                    label="ความหายาก"
+                    allLabel="ทุกความหายาก"
+                    options={rareOptions}
+                    selected={rares}
+                    onChange={setRares}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold text-muted">
+                    {query.trim() || hasFilters
+                      ? `พบ ${results.length} ใบ`
+                      : `แสดง ${results.length} ใบแรก · ค้นหรือกรองเพื่อหาใบอื่น`}
+                  </p>
+                  {hasFilters && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSeries([]);
+                        setTypes([]);
+                        setRares([]);
+                      }}
+                      className="text-xs font-bold underline"
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  )}
+                </div>
+                {hasFilters && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {series.map((code) => (
+                      <button
+                        type="button"
+                        key={`s-${code}`}
+                        onClick={() => setSeries(series.filter((item) => item !== code))}
+                        className="rounded-full border-2 border-ink bg-white px-2 py-0.5 text-[11px] font-bold"
+                      >
+                        {seriesLabel(`${code}-000`)} ×
+                      </button>
+                    ))}
+                    {types.map((item) => (
+                      <button
+                        type="button"
+                        key={`t-${item}`}
+                        onClick={() => setTypes(types.filter((value) => value !== item))}
+                        className="rounded-full border-2 border-ink bg-white px-2 py-0.5 text-[11px] font-bold"
+                      >
+                        {typeLabel(item)} ×
+                      </button>
+                    ))}
+                    {rares.map((item) => (
+                      <button
+                        type="button"
+                        key={`r-${item}`}
+                        onClick={() => setRares(rares.filter((value) => value !== item))}
+                        className="rounded-full border-2 border-ink bg-white px-2 py-0.5 text-[11px] font-bold"
+                      >
+                        {displayRare(item)} ×
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 grid min-h-0 flex-1 auto-rows-max grid-cols-3 items-start content-start gap-2 overflow-y-auto sm:grid-cols-4 lg:grid-cols-5">
+                {results.length === 0 && (
+                  <p className="col-span-full py-8 text-center text-sm font-medium text-muted">
+                    ไม่พบการ์ดตามตัวกรอง
+                  </p>
+                )}
                 {results.map((card) => {
                   const qty = qtyOf(card);
                   return (
@@ -346,7 +465,7 @@ export function PlaceModal({
                       type="button"
                       key={cardKey(card.print, card.rare)}
                       onClick={() => addCard(card)}
-                      className={`relative aspect-[249/339] w-full overflow-hidden rounded-lg border-2 ${
+                      className={`relative block aspect-[249/339] w-full shrink-0 overflow-hidden rounded-lg border-2 ${
                         qty > 0 ? "border-bot-red" : "border-ink/30 hover:border-ink"
                       }`}
                     >
@@ -359,7 +478,7 @@ export function PlaceModal({
                         print={card.print}
                         rare={card.rare}
                         name={card.name}
-                        className="h-full w-full object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                       />
                     </button>
                   );
