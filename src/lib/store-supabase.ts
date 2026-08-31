@@ -1,4 +1,4 @@
-import type { Box, CatalogMeta, Placement, StoreData } from "./types";
+import type { Box, CatalogMeta, Person, Placement, StoreData } from "./types";
 import {
   explainSupabaseError,
   getSupabase,
@@ -40,22 +40,45 @@ export function getStore() {
   return loadStore();
 }
 
-export async function createPerson(name: string) {
+export async function createPerson(name: string, notes = "") {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("ใส่ชื่อก่อน");
-  const { error } = await getSupabase().from("people").insert({ name: trimmed });
+  const payload: Record<string, string> = { name: trimmed };
+  const trimmedNotes = notes.trim();
+  if (trimmedNotes) payload.notes = trimmedNotes;
+  let { error } = await getSupabase().from("people").insert(payload);
+  if (error?.code === "42703") {
+    const retry = await getSupabase().from("people").insert({ name: trimmed });
+    error = retry.error;
+  }
   if (error) fail(error);
   return loadStore();
 }
 
-export async function updatePerson(id: string, name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) throw new Error("ใส่ชื่อก่อน");
-  const { data, error } = await getSupabase()
+export async function updatePerson(
+  id: string,
+  patch: Partial<Pick<Person, "name" | "notes">>,
+) {
+  const next: Record<string, string> = {};
+  if (patch.name !== undefined) {
+    const trimmed = patch.name.trim();
+    if (!trimmed) throw new Error("ใส่ชื่อก่อน");
+    next.name = trimmed;
+  }
+  if (patch.notes !== undefined) next.notes = patch.notes.trim();
+  if (Object.keys(next).length === 0) return loadStore();
+  let { data, error } = await getSupabase()
     .from("people")
-    .update({ name: trimmed })
+    .update(next)
     .eq("id", id)
     .select("id");
+  if (error?.code === "42703" && next.notes !== undefined) {
+    delete next.notes;
+    if (Object.keys(next).length === 0) return loadStore();
+    const retry = await getSupabase().from("people").update(next).eq("id", id).select("id");
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) fail(error);
   if (!data?.length) throw new Error("ไม่พบคนนี้");
   return loadStore();

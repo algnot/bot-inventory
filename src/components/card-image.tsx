@@ -35,6 +35,7 @@ export function CardImage({
       src={src}
       alt={name}
       loading="lazy"
+      decoding="async"
       className={`aspect-[249/339] w-full object-cover ${className}`}
       onError={() => setFailed(true)}
     />

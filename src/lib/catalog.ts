@@ -1,23 +1,41 @@
+import { unstable_cache, revalidateTag } from "next/cache";
 import type { Card } from "./types";
 import { cardKey } from "./types";
 import { storageMode } from "./supabase";
 import { isReadOnlyError, loadCatalogFile, saveCatalogFile } from "./catalog-file";
 import { loadCatalogSupabase, saveCatalogSupabase } from "./catalog-supabase";
 
-let memory: Card[] | null = null;
+const CATALOG_TAG = "catalog";
 
-export async function loadCatalog(): Promise<Card[]> {
-  if (memory) return memory;
+let memory: Card[] | null = null;
+let inflight: Promise<Card[]> | null = null;
+
+async function loadCatalogFresh(): Promise<Card[]> {
   if (storageMode() === "supabase") {
     const fromDb = await loadCatalogSupabase();
-    if (fromDb.length > 0) {
-      memory = fromDb;
-      return fromDb;
-    }
+    if (fromDb.length > 0) return fromDb;
   }
-  const fromFile = await loadCatalogFile();
-  memory = fromFile;
-  return fromFile;
+  return loadCatalogFile();
+}
+
+const loadCatalogCached = unstable_cache(loadCatalogFresh, ["bot-catalog"], {
+  tags: [CATALOG_TAG],
+  revalidate: 3600,
+});
+
+export async function loadCatalog(): Promise<Card[]> {
+  if (memory !== null) return memory;
+  if (!inflight) {
+    inflight = loadCatalogCached()
+      .then((cards) => {
+        memory = cards;
+        return cards;
+      })
+      .finally(() => {
+        inflight = null;
+      });
+  }
+  return inflight;
 }
 
 export async function saveCatalog(cards: Card[]) {
@@ -29,9 +47,16 @@ export async function saveCatalog(cards: Card[]) {
     } catch (error) {
       if (!isReadOnlyError(error)) throw error;
     }
-    return;
+  } else {
+    await saveCatalogFile(cards);
   }
-  await saveCatalogFile(cards);
+  revalidateTag(CATALOG_TAG, { expire: 0 });
+}
+
+export function catalogFingerprint(cards: Card[]) {
+  const first = cards[0]?.print ?? "";
+  const last = cards[cards.length - 1]?.print ?? "";
+  return `W/"${cards.length}-${first}-${last}"`;
 }
 
 export function findCard(cards: Card[], print: string, rare: string) {

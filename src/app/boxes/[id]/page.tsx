@@ -10,21 +10,31 @@ import { cardKey } from "@/lib/types";
 import type { Card, LocatedCard, Placement } from "@/lib/types";
 import { personName } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
+import { useCatalog } from "@/lib/use-catalog";
 
 export default function BoxDetailPage() {
   const params = useParams<{ id: string }>();
   const { state, reload, error } = useAppState();
-  const [catalog, setCatalog] = useState<Card[]>([]);
+  const catalog = useCatalog(state?.meta.syncedAt, state?.catalogCount);
   const [placeRow, setPlaceRow] = useState<number | null>(null);
   const [detail, setDetail] = useState<LocatedCard | null>(null);
-
-  useEffect(() => {
-    void fetch("/api/catalog")
-      .then((res) => res.json())
-      .then((data) => setCatalog(data.cards ?? []));
-  }, []);
+  const [name, setName] = useState("");
+  const [rows, setRows] = useState(4);
+  const [notes, setNotes] = useState("");
+  const [ownerId, setOwnerId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const box = state?.boxes.find((item) => item.id === params.id);
+
+  useEffect(() => {
+    if (!box) return;
+    setName(box.name);
+    setRows(box.rows);
+    setNotes(box.notes ?? "");
+    setOwnerId(box.ownerId ?? "");
+  }, [box?.id, box?.name, box?.rows, box?.notes, box?.ownerId]);
+
   const cardsByKey = useMemo(() => {
     const map = new Map<string, Card>();
     for (const card of catalog) map.set(cardKey(card.print, card.rare), card);
@@ -48,13 +58,42 @@ export default function BoxDetailPage() {
     await reload();
   }
 
-  async function changeOwner(nextOwnerId: string) {
-    await fetch(`/api/boxes/${box?.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ownerId: nextOwnerId || null }),
-    });
-    await reload();
+  async function saveBox(event: React.FormEvent) {
+    event.preventDefault();
+    if (!box) return;
+    if (rows < box.rows) {
+      const extra = (state?.placements ?? []).filter(
+        (item) => item.boxId === box.id && item.row > rows,
+      );
+      const extraCount = extra.reduce((sum, item) => sum + item.quantity, 0);
+      if (
+        extraCount > 0 &&
+        !confirm(`ลดเหลือ ${rows} แถว การ์ด ${extraCount} ใบที่อยู่แถวถัดไปจะถูกลบ`)
+      ) {
+        return;
+      }
+    }
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const res = await fetch(`/api/boxes/${box.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          rows,
+          notes,
+          ownerId: ownerId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "บันทึกกล่องไม่สำเร็จ");
+      await reload();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "บันทึกกล่องไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (error) return <p className="p-6 font-bold text-bot-red">{error}</p>;
@@ -83,21 +122,6 @@ export default function BoxDetailPage() {
               ? `ของ${personName(state.people, box.ownerId)} · ${box.rows} แถว`
               : `${box.rows} แถว แบบรางยาว`}
           </p>
-          <label className="mt-3 flex min-w-0 flex-col gap-1 text-sm font-bold sm:flex-row sm:items-center sm:gap-2">
-            เจ้าของ
-            <select
-              value={box.ownerId ?? ""}
-              onChange={(event) => void changeOwner(event.target.value)}
-              className="h-10 w-full max-w-full rounded-xl border-2 border-ink bg-white px-3 font-semibold sm:w-auto"
-            >
-              <option value="">ยังไม่ระบุ</option>
-              {(state.people ?? []).map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
         <button
           type="button"
@@ -111,6 +135,67 @@ export default function BoxDetailPage() {
           ลบกล่อง
         </button>
       </div>
+
+      <form
+        onSubmit={(event) => void saveBox(event)}
+        className="mt-5 grid gap-3 rounded-2xl border-4 border-ink bg-cream p-3 sm:grid-cols-2 sm:p-4 md:grid-cols-[1fr_160px_110px]"
+      >
+        <label className="block text-sm font-bold">
+          ชื่อกล่อง
+          <input
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
+          />
+        </label>
+        <label className="block text-sm font-bold">
+          เจ้าของ
+          <select
+            value={ownerId}
+            onChange={(event) => setOwnerId(event.target.value)}
+            className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
+          >
+            <option value="">ยังไม่ระบุ</option>
+            {(state.people ?? []).map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-sm font-bold">
+          จำนวนแถว
+          <input
+            type="number"
+            min={1}
+            max={40}
+            value={rows}
+            onChange={(event) => setRows(Number(event.target.value))}
+            className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
+          />
+        </label>
+        <label className="block text-sm font-bold sm:col-span-2 md:col-span-3">
+          หมายเหตุ
+          <textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            rows={2}
+            placeholder="เช่น กล่องใบนี้เก็บชุด BT01"
+            className="mt-1 w-full rounded-xl border-2 border-ink bg-white px-3 py-2"
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2 md:col-span-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="h-12 rounded-xl border-2 border-ink bg-ink px-4 font-extrabold text-cream disabled:opacity-50"
+          >
+            {saving ? "กำลังบันทึก..." : "บันทึกข้อมูลกล่อง"}
+          </button>
+          {saveError && <p className="text-sm font-bold text-bot-red">{saveError}</p>}
+        </div>
+      </form>
 
       <div className="mt-6 space-y-4">
         {Array.from({ length: box.rows }, (_, rowIdx) => {

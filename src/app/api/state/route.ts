@@ -11,11 +11,8 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") ?? "";
-    const [store, catalog, located] = await Promise.all([
-      getStore(),
-      loadCatalog(),
-      getLocatedCards(q),
-    ]);
+    const [store, catalog] = await Promise.all([getStore(), loadCatalog()]);
+    const located = await getLocatedCards(q, { store, cards: catalog });
     return NextResponse.json({
       boxes: store.boxes,
       people: store.people,

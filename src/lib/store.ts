@@ -1,4 +1,4 @@
-import type { Box, CatalogMeta, Placement, StoreData } from "./types";
+import type { Box, CatalogMeta, Person, Placement, StoreData } from "./types";
 import { storageMode } from "./supabase";
 import * as fileStore from "./store-file";
 import * as supabaseStore from "./store-supabase";
@@ -11,12 +11,15 @@ export function getStore() {
   return backend().getStore();
 }
 
-export function createPerson(name: string) {
-  return backend().createPerson(name);
+export function createPerson(name: string, notes = "") {
+  return backend().createPerson(name, notes);
 }
 
-export function updatePerson(id: string, name: string) {
-  return backend().updatePerson(id, name);
+export function updatePerson(
+  id: string,
+  patch: Partial<Pick<Person, "name" | "notes">>,
+) {
+  return backend().updatePerson(id, patch);
 }
 
 export function deletePerson(id: string) {

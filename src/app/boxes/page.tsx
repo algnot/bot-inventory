@@ -10,6 +10,7 @@ export default function BoxesPage() {
   const [name, setName] = useState("");
   const [rows, setRows] = useState(4);
   const [ownerId, setOwnerId] = useState("");
+  const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,11 +22,12 @@ export default function BoxesPage() {
       const res = await fetch("/api/boxes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, rows, ownerId: ownerId || null }),
+        body: JSON.stringify({ name, rows, ownerId: ownerId || null, notes }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "สร้างกล่องไม่สำเร็จ");
       setName("");
+      setNotes("");
       await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "สร้างกล่องไม่สำเร็จ");
@@ -97,10 +99,19 @@ export default function BoxesPage() {
             className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
           />
         </label>
+        <label className="block text-sm font-bold sm:col-span-2 md:col-span-4">
+          หมายเหตุ
+          <input
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="ไม่บังคับ เช่น กล่องใบนี้เก็บชุด BT01"
+            className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
+          />
+        </label>
         <button
           type="submit"
           disabled={saving}
-          className="h-12 rounded-xl border-2 border-ink bg-ink px-4 font-extrabold text-cream disabled:opacity-50 sm:col-span-2 md:col-span-1"
+          className="h-12 rounded-xl border-2 border-ink bg-ink px-4 font-extrabold text-cream disabled:opacity-50 sm:col-span-2 md:col-span-4"
         >
           {saving ? "กำลังสร้าง..." : "สร้างกล่อง"}
         </button>
@@ -141,6 +152,9 @@ export default function BoxesPage() {
                       ? `ของ${personName(people, box.ownerId)} · ${box.rows} แถว`
                       : `${box.rows} แถว`}
                   </p>
+                  {box.notes ? (
+                    <p className="mt-1 truncate text-sm text-muted">{box.notes}</p>
+                  ) : null}
                   <p className="mt-3 font-black text-bot-red">
                     {counts.get(box.id) ?? 0} ใบ
                   </p>

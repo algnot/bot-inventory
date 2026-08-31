@@ -12,7 +12,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const store = await createPerson(String(body.name ?? ""));
+    const store = await createPerson(String(body.name ?? ""), String(body.notes ?? ""));
     return NextResponse.json({ people: store.people });
   } catch (error) {
     const message = error instanceof Error ? error.message : "เพิ่มคนไม่สำเร็จ";

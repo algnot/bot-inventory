@@ -25,6 +25,7 @@ export type Card = {
 export type Person = {
   id: string;
   name: string;
+  notes: string;
   createdAt: string;
 };
 

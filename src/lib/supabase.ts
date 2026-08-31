@@ -49,6 +49,7 @@ export function getSupabase(): SupabaseClient {
 export type PersonRow = {
   id: string;
   name: string;
+  notes?: string | null;
   created_at: string;
 };
 
@@ -81,7 +82,12 @@ export type CatalogMetaRow = {
 };
 
 export function mapPerson(row: PersonRow): Person {
-  return { id: row.id, name: row.name, createdAt: row.created_at };
+  return {
+    id: row.id,
+    name: row.name,
+    notes: row.notes ?? "",
+    createdAt: row.created_at,
+  };
 }
 
 export function mapBox(row: BoxRow): Box {

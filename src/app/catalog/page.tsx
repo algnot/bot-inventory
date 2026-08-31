@@ -14,10 +14,11 @@ import { seriesCode, seriesLabel } from "@/lib/series";
 import { cardKey } from "@/lib/types";
 import type { Box, Card, LocatedCard, Person, Placement } from "@/lib/types";
 import { useAppState } from "@/lib/use-app-state";
+import { useCatalog } from "@/lib/use-catalog";
 
 export default function CatalogPage() {
   const { state, reload, error } = useAppState();
-  const [cards, setCards] = useState<Card[]>([]);
+  const cards = useCatalog(state?.meta.syncedAt, state?.catalogCount);
   const [query, setQuery] = useState("");
   const [series, setSeries] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
@@ -25,12 +26,6 @@ export default function CatalogPage() {
   const [selected, setSelected] = useState<Card | null>(null);
   const [placeCard, setPlaceCard] = useState<Card | null>(null);
   const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    void fetch("/api/catalog")
-      .then((res) => res.json())
-      .then((data) => setCards(data.cards ?? []));
-  }, [state?.meta.syncedAt]);
 
   const seriesOptions = useMemo(() => {
     return [...new Set(cards.map((card) => seriesCode(card.print)))]

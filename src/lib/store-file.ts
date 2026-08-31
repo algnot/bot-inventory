@@ -24,6 +24,7 @@ function migratePerson(raw: Person): Person {
   return {
     id: raw.id,
     name: raw.name,
+    notes: raw.notes ?? "",
     createdAt: raw.createdAt,
   };
 }
@@ -96,7 +97,7 @@ export function updateStore(mutator: (data: StoreData) => StoreData | void) {
   });
 }
 
-export function createPerson(name: string) {
+export function createPerson(name: string, notes = "") {
   return updateStore((data) => {
     const trimmed = name.trim();
     if (!trimmed) throw new Error("ใส่ชื่อก่อน");
@@ -106,22 +107,29 @@ export function createPerson(name: string) {
     const person: Person = {
       id: crypto.randomUUID(),
       name: trimmed,
+      notes: notes.trim(),
       createdAt: new Date().toISOString(),
     };
     data.people.push(person);
   });
 }
 
-export function updatePerson(id: string, name: string) {
+export function updatePerson(
+  id: string,
+  patch: Partial<Pick<Person, "name" | "notes">>,
+) {
   return updateStore((data) => {
     const person = data.people.find((item) => item.id === id);
     if (!person) throw new Error("ไม่พบคนนี้");
-    const trimmed = name.trim();
-    if (!trimmed) throw new Error("ใส่ชื่อก่อน");
-    if (data.people.some((item) => item.id !== id && item.name === trimmed)) {
-      throw new Error("มีชื่อนี้อยู่แล้ว");
+    if (patch.name !== undefined) {
+      const trimmed = patch.name.trim();
+      if (!trimmed) throw new Error("ใส่ชื่อก่อน");
+      if (data.people.some((item) => item.id !== id && item.name === trimmed)) {
+        throw new Error("มีชื่อนี้อยู่แล้ว");
+      }
+      person.name = trimmed;
     }
-    person.name = trimmed;
+    if (patch.notes !== undefined) person.notes = patch.notes.trim();
   });
 }
 

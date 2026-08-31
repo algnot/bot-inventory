@@ -10,7 +10,10 @@ export async function PATCH(request: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
     const body = await request.json();
-    const store = await updatePerson(id, String(body.name ?? ""));
+    const store = await updatePerson(id, {
+      name: body.name !== undefined ? String(body.name) : undefined,
+      notes: body.notes !== undefined ? String(body.notes) : undefined,
+    });
     return NextResponse.json({ people: store.people });
   } catch (error) {
     const message = error instanceof Error ? error.message : "แก้ชื่อไม่สำเร็จ";

@@ -8,6 +8,7 @@ import { PlaceModal } from "@/components/place-modal";
 import { RarityBadge } from "@/components/rarity-badge";
 import { locationLabel } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
+import { catalogVersion, loadCatalogClient } from "@/lib/catalog-client";
 import type { Card, LocatedCard } from "@/lib/types";
 
 export default function HomePage() {
@@ -20,9 +21,9 @@ export default function HomePage() {
 
   async function ensureCatalog() {
     if (catalog.length) return catalog;
-    const res = await fetch("/api/catalog");
-    const data = await res.json();
-    const cards = (data.cards ?? []) as Card[];
+    const cards = await loadCatalogClient(
+      catalogVersion(state?.meta.syncedAt, state?.catalogCount),
+    );
     setCatalog(cards);
     return cards;
   }

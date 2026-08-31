@@ -1,11 +1,17 @@
 import { catalogIndex, loadCatalog } from "./catalog";
 import { getStore } from "./store";
-import type { LocatedCard } from "./types";
+import type { LocatedCard, StoreData, Card } from "./types";
 import { cardKey } from "./types";
 export { locationLabel, typeLabel } from "./labels";
 
-export async function getLocatedCards(query = ""): Promise<LocatedCard[]> {
-  const [store, cards] = await Promise.all([getStore(), loadCatalog()]);
+export async function getLocatedCards(
+  query = "",
+  preloaded?: { store?: StoreData; cards?: Card[] },
+): Promise<LocatedCard[]> {
+  const [store, cards] = await Promise.all([
+    preloaded?.store ? Promise.resolve(preloaded.store) : getStore(),
+    preloaded?.cards ? Promise.resolve(preloaded.cards) : loadCatalog(),
+  ]);
   const index = catalogIndex(cards);
   const boxes = new Map(store.boxes.map((box) => [box.id, box]));
   const people = new Map(store.people.map((person) => [person.id, person]));
