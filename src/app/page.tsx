@@ -33,12 +33,15 @@ export default function HomePage() {
     setPlaceOpen(true);
   }
 
-  const ownedCount = state?.placements.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+  const ownedCount =
+    state?.placements.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">
       <div className="rounded-3xl border-4 border-ink bg-cream p-4 sm:p-5 md:p-7">
-        <p className="text-xs font-bold tracking-wide text-bot-red">คลังการ์ด BOT ของต้นก้า</p>
+        <p className="text-xs font-bold tracking-wide text-bot-red">
+          คลังการ์ด BOT ของต้นก้า
+        </p>
         <div className="mt-5 flex flex-col gap-3 md:flex-row">
           <input
             value={query}
@@ -64,11 +67,6 @@ export default function HomePage() {
           <span className="rounded-full border-2 border-ink bg-white px-3 py-1">
             แคตตาล็อก {state?.catalogCount ?? 0} ใบ
           </span>
-          {state?.storage && (
-            <span className="rounded-full border-2 border-ink bg-white px-3 py-1">
-              {state.storage === "supabase" ? "คลาวด์ Supabase" : "ไฟล์ในเครื่อง"}
-            </span>
-          )}
         </div>
       </div>
 
@@ -79,7 +77,10 @@ export default function HomePage() {
       {state && state.boxes.length === 0 && (
         <div className="mt-6 rounded-2xl border-4 border-dashed border-ink/40 p-6 text-center">
           <p className="font-bold">ยังไม่มีกล่องเก็บการ์ด</p>
-          <Link href="/boxes" className="mt-3 inline-block font-extrabold underline">
+          <Link
+            href="/boxes"
+            className="mt-3 inline-block font-extrabold underline"
+          >
             สร้างกล่องแรก
           </Link>
         </div>
@@ -94,11 +95,17 @@ export default function HomePage() {
             className="flex gap-3 rounded-2xl border-2 border-ink bg-cream p-3 text-left hover:bg-white"
           >
             <div className="w-16 shrink-0 overflow-hidden rounded-lg border-2 border-ink sm:w-20">
-              <CardImage print={item.print} rare={item.rare} name={item.card.name} />
+              <CardImage
+                print={item.print}
+                rare={item.rare}
+                name={item.card.name}
+              />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="truncate text-lg font-extrabold">{item.card.name}</h2>
+                <h2 className="truncate text-lg font-extrabold">
+                  {item.card.name}
+                </h2>
                 <RarityBadge rare={item.rare} />
               </div>
               <p className="text-sm text-muted">{item.print}</p>
@@ -106,7 +113,9 @@ export default function HomePage() {
                 {locationLabel(item.box.name, item.row, item.ownerName)}
               </p>
               {item.quantity > 1 && (
-                <p className="text-sm font-semibold">จำนวน {item.quantity} ใบ</p>
+                <p className="text-sm font-semibold">
+                  จำนวน {item.quantity} ใบ
+                </p>
               )}
               <Link
                 href={`/boxes/${item.boxId}`}
@@ -122,7 +131,8 @@ export default function HomePage() {
 
       {state && query && state.located.length === 0 && (
         <p className="mt-6 text-center font-medium text-muted">
-          ไม่พบการ์ดนี้ในกล่องของเรา — ลองค้นจากหน้าการ์ดทั้งหมดแล้วกดใส่เข้ากล่อง
+          ไม่พบการ์ดนี้ในกล่องของเรา —
+          ลองค้นจากหน้าการ์ดทั้งหมดแล้วกดใส่เข้ากล่อง
         </p>
       )}
 
