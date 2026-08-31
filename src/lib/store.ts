@@ -80,3 +80,7 @@ export function deletePlacement(id: string) {
 export function setCatalogMeta(meta: CatalogMeta) {
   return backend().setCatalogMeta(meta);
 }
+
+export function setPinHash(pinHash: string | null) {
+  return backend().setPinHash(pinHash);
+}

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
+import { denyIfLocked } from "@/lib/lock";
 import { addPlacement, addPlacements } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const denied = await denyIfLocked();
+  if (denied) return denied;
   try {
     const body = await request.json();
     const items = Array.isArray(body.items) ? body.items : null;

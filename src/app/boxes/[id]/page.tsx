@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CardImage } from "@/components/card-image";
 import { CardModal } from "@/components/card-modal";
+import { ReadOnlyBanner } from "@/components/lock-button";
 import { PlaceModal } from "@/components/place-modal";
 import { cardKey } from "@/lib/types";
 import type { Card, LocatedCard, Placement } from "@/lib/types";
+import { canEdit, requestUnlock, throwIfApiError } from "@/lib/lock-client";
 import { personName } from "@/lib/labels";
 import { useAppState } from "@/lib/use-app-state";
 import { useCatalog } from "@/lib/use-catalog";
@@ -53,9 +55,19 @@ export default function BoxDetailPage() {
   }, [state?.placements, params.id]);
 
   async function remove(id: string) {
-    await fetch(`/api/inventory/${id}`, { method: "DELETE" });
-    setDetail(null);
-    await reload();
+    if (!canEdit(state?.lock)) {
+      requestUnlock();
+      return;
+    }
+    try {
+      const res = await fetch(`/api/inventory/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      throwIfApiError(res, data, "ลบการ์ดไม่สำเร็จ");
+      setDetail(null);
+      await reload();
+    } catch {
+      /* LOCKED already opens unlock modal */
+    }
   }
 
   async function saveBox(event: React.FormEvent) {
@@ -87,7 +99,7 @@ export default function BoxDetailPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "บันทึกกล่องไม่สำเร็จ");
+      throwIfApiError(res, data, "บันทึกกล่องไม่สำเร็จ");
       await reload();
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "บันทึกกล่องไม่สำเร็จ");
@@ -109,6 +121,8 @@ export default function BoxDetailPage() {
     );
   }
 
+  const editable = canEdit(state.lock);
+
   return (
     <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">
       <Link href="/boxes" className="text-sm font-bold underline">
@@ -123,19 +137,30 @@ export default function BoxDetailPage() {
               : `${box.rows} แถว แบบรางยาว`}
           </p>
         </div>
+        {editable && (
         <button
           type="button"
           onClick={async () => {
             if (!confirm(`ลบกล่อง “${box.name}” และการ์ดทั้งหมดในกล่องนี้?`)) return;
-            await fetch(`/api/boxes/${box.id}`, { method: "DELETE" });
+            const res = await fetch(`/api/boxes/${box.id}`, { method: "DELETE" });
+            const data = await res.json().catch(() => null);
+            try {
+              throwIfApiError(res, data, "ลบกล่องไม่สำเร็จ");
+            } catch {
+              return;
+            }
             window.location.href = "/boxes";
           }}
           className="self-start rounded-full border-2 border-ink px-3 py-1 text-sm font-bold hover:bg-bot-red hover:text-white"
         >
           ลบกล่อง
         </button>
+        )}
       </div>
 
+      <ReadOnlyBanner lock={state.lock} />
+
+      {editable && (
       <form
         onSubmit={(event) => void saveBox(event)}
         className="mt-5 grid gap-3 rounded-2xl border-4 border-ink bg-cream p-3 sm:grid-cols-2 sm:p-4 md:grid-cols-[1fr_160px_110px]"
@@ -196,6 +221,7 @@ export default function BoxDetailPage() {
           {saveError && <p className="text-sm font-bold text-bot-red">{saveError}</p>}
         </div>
       </form>
+      )}
 
       <div className="mt-6 space-y-4">
         {Array.from({ length: box.rows }, (_, rowIdx) => {
@@ -241,7 +267,13 @@ export default function BoxDetailPage() {
                 })}
                 <button
                   type="button"
-                  onClick={() => setPlaceRow(row)}
+                  onClick={() => {
+                    if (!editable) {
+                      requestUnlock();
+                      return;
+                    }
+                    setPlaceRow(row);
+                  }}
                   className="flex w-20 shrink-0 aspect-[249/339] items-center justify-center rounded-lg border-2 border-dashed border-ink/40 bg-white text-2xl font-black text-ink/25 sm:w-24"
                 >
                   +
@@ -269,7 +301,7 @@ export default function BoxDetailPage() {
           card={detail.card}
           locations={[detail]}
           onClose={() => setDetail(null)}
-          onRemove={() => void remove(detail.id)}
+          onRemove={editable ? () => void remove(detail.id) : undefined}
         />
       )}
     </div>

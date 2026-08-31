@@ -30,6 +30,7 @@ async function loadStore(): Promise<StoreData> {
 
   return {
     meta: mapMeta((meta.data as CatalogMetaRow | null) ?? null),
+    pinHash: (meta.data as CatalogMetaRow | null)?.pin_hash ?? null,
     people: ((people.data ?? []) as PersonRow[]).map(mapPerson),
     boxes: ((boxes.data ?? []) as BoxRow[]).map(mapBox),
     placements: ((placements.data ?? []) as PlacementRow[]).map(mapPlacement),
@@ -359,5 +360,23 @@ export async function setCatalogMeta(meta: CatalogMeta) {
     last_new_cards: meta.lastNewCards,
   });
   if (error) fail(error);
+  return loadStore();
+}
+
+export async function setPinHash(pinHash: string | null) {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("catalog_meta")
+    .update({ pin_hash: pinHash })
+    .eq("id", 1)
+    .select("id");
+  if (error?.code === "42703") {
+    throw new Error("ยังไม่มีคอลัมน์รหัส — เปิด SQL Editor แล้วรัน supabase/lock.sql");
+  }
+  if (error) fail(error);
+  if (!data?.length) {
+    const inserted = await supabase.from("catalog_meta").insert({ id: 1, pin_hash: pinHash });
+    if (inserted.error) fail(inserted.error);
+  }
   return loadStore();
 }

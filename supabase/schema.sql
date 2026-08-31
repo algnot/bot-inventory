@@ -34,7 +34,8 @@ create table if not exists catalog_meta (
   synced_at timestamptz,
   count integer not null default 0,
   last_added integer not null default 0,
-  last_new_cards jsonb not null default '[]'::jsonb
+  last_new_cards jsonb not null default '[]'::jsonb,
+  pin_hash text
 );
 
 insert into catalog_meta (id)

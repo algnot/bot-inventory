@@ -58,9 +58,15 @@ export type CatalogMeta = {
 
 export type StoreData = {
   meta: CatalogMeta;
+  pinHash: string | null;
   people: Person[];
   boxes: Box[];
   placements: Placement[];
+};
+
+export type LockState = {
+  enabled: boolean;
+  unlocked: boolean;
 };
 
 export type LocatedCard = Placement & {

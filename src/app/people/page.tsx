@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { ReadOnlyBanner } from "@/components/lock-button";
+import { canEdit, requestUnlock, throwIfApiError } from "@/lib/lock-client";
 import { useAppState } from "@/lib/use-app-state";
 
 export default function PeoplePage() {
@@ -31,7 +33,7 @@ export default function PeoplePage() {
         body: JSON.stringify({ name, notes }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "เพิ่มคนไม่สำเร็จ");
+      throwIfApiError(res, data, "เพิ่มคนไม่สำเร็จ");
       setName("");
       setNotes("");
       await reload();
@@ -61,7 +63,7 @@ export default function PeoplePage() {
         body: JSON.stringify({ name: editName, notes: editNotes }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
+      throwIfApiError(res, data, "บันทึกไม่สำเร็จ");
       setEditingId(null);
       await reload();
     } catch (err) {
@@ -72,19 +74,31 @@ export default function PeoplePage() {
   }
 
   async function remove(id: string, personName: string) {
+    if (!canEdit(state?.lock)) {
+      requestUnlock();
+      return;
+    }
     if (!confirm(`ลบ “${personName}” ออกจากรายชื่อ? กล่องที่เป็นของคนนี้จะกลายเป็นยังไม่ระบุเจ้าของ`)) {
       return;
     }
-    await fetch(`/api/people/${id}`, { method: "DELETE" });
-    if (editingId === id) setEditingId(null);
-    await reload();
+    try {
+      const res = await fetch(`/api/people/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
+      throwIfApiError(res, data, "ลบคนไม่สำเร็จ");
+      if (editingId === id) setEditingId(null);
+      await reload();
+    } catch {
+      /* LOCKED already opens unlock modal */
+    }
   }
 
   return (
     <div className="mx-auto max-w-6xl px-3 py-5 sm:px-4 sm:py-6">
       <h1 className="text-2xl font-black sm:text-3xl">เจ้าของกล่อง</h1>
       <p className="mt-1 text-muted">เพิ่มคนไว้ก่อน แล้วตอนสร้างกล่องค่อยเลือกว่ากล่องนี้ของใคร</p>
+      {state && <ReadOnlyBanner lock={state.lock} />}
 
+      {canEdit(state?.lock) ? (
       <form
         onSubmit={(event) => void addPerson(event)}
         className="mt-5 grid items-end gap-3 rounded-2xl border-4 border-ink bg-cream p-3 sm:p-4 md:grid-cols-[1fr_1fr_auto]"
@@ -117,6 +131,15 @@ export default function PeoplePage() {
         </button>
         {error && <p className="md:col-span-3 text-sm font-bold text-bot-red">{error}</p>}
       </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => requestUnlock()}
+          className="mt-5 rounded-2xl border-4 border-ink bg-cream px-4 py-3 text-sm font-extrabold"
+        >
+          ใส่รหัสเพื่อเพิ่มเจ้าของ
+        </button>
+      )}
 
       {loading && !state && <p className="mt-6 text-muted">กำลังโหลด...</p>}
       {loadError && <p className="mt-6 font-bold text-bot-red">{loadError}</p>}
@@ -179,6 +202,8 @@ export default function PeoplePage() {
                   <p className="mt-1 text-sm text-muted">{boxCount.get(person.id) ?? 0} กล่อง</p>
                 </div>
                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                  {canEdit(state?.lock) && (
+                    <>
                   <button
                     type="button"
                     onClick={() => startEdit(person.id, person.name, person.notes ?? "")}
@@ -193,6 +218,8 @@ export default function PeoplePage() {
                   >
                     ลบ
                   </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

@@ -79,6 +79,7 @@ export type CatalogMetaRow = {
   count: number;
   last_added: number;
   last_new_cards: CatalogMeta["lastNewCards"];
+  pin_hash?: string | null;
 };
 
 export function mapPerson(row: PersonRow): Person {

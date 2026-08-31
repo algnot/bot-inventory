@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LockButton } from "./lock-button";
 import { SyncButton } from "./sync-button";
 
 const NAV = [
@@ -44,6 +45,7 @@ export function Header() {
               </Link>
             );
           })}
+          <LockButton />
           <SyncButton />
         </nav>
       </div>

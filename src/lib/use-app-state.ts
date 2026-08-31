@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Box, CatalogMeta, LocatedCard, Person, Placement } from "@/lib/types";
+import type { Box, CatalogMeta, LocatedCard, LockState, Person, Placement } from "@/lib/types";
 
 export type AppState = {
   boxes: Box[];
@@ -11,6 +11,7 @@ export type AppState = {
   meta: CatalogMeta;
   catalogCount: number;
   storage: "supabase" | "file";
+  lock: LockState;
 };
 
 export function useAppState(query = "") {
@@ -34,6 +35,7 @@ export function useAppState(query = "") {
         ...data,
         people: data.people ?? [],
         storage: data.storage ?? "file",
+        lock: data.lock ?? { enabled: false, unlocked: true },
       });
       setError(null);
     } catch (err) {

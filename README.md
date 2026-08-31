@@ -22,6 +22,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ถ้าตารางอื่นมีอยู่แล้ว ให้รัน `supabase/cards.sql` ด้วย เพื่อให้ปุ่มซิงก์การ์ดเขียนลงฐานข้อมูลได้ (บน Vercel เขียนไฟล์ไม่ได้)
 
+ถ้าต้องการล็อกคลังด้วยรหัส ให้รัน `supabase/lock.sql` ด้วย (หรือใช้ `schema.sql` ชุดใหม่ที่มีคอลัมน์ `pin_hash`)
+
 1. สร้างโปรเจกต์ที่ [supabase.com](https://supabase.com)
 2. เปิด SQL Editor วางเนื้อหาใน `supabase/schema.sql` แล้วกด Run
 3. ที่ Project Settings → API คัดลอก Project URL และคีย์ใส่ `.env.local`

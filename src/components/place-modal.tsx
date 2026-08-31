@@ -7,6 +7,7 @@ import { CardImage } from "./card-image";
 import { RarityBadge } from "./rarity-badge";
 import { searchCards } from "@/lib/catalog-search";
 import { personName } from "@/lib/labels";
+import { throwIfApiError } from "@/lib/lock-client";
 
 type SelectedItem = {
   card: Card;
@@ -113,7 +114,7 @@ export function PlaceModal({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "บันทึกไม่สำเร็จ");
+      throwIfApiError(res, data, "บันทึกไม่สำเร็จ");
       onSaved();
       onClose();
     } catch (err) {

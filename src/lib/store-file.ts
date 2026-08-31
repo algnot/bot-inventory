@@ -15,6 +15,7 @@ const emptyMeta = (): CatalogMeta => ({
 
 const emptyStore = (): StoreData => ({
   meta: emptyMeta(),
+  pinHash: null,
   people: [],
   boxes: [],
   placements: [],
@@ -61,6 +62,7 @@ async function readStore(): Promise<StoreData> {
     const data = JSON.parse(raw) as StoreData;
     return {
       meta: { ...emptyMeta(), ...data.meta },
+      pinHash: data.pinHash ?? null,
       people: (data.people ?? []).map(migratePerson),
       boxes: (data.boxes ?? []).map(migrateBox),
       placements: (data.placements ?? []).map(migratePlacement),
@@ -301,5 +303,11 @@ export function deletePlacement(id: string) {
 export function setCatalogMeta(meta: CatalogMeta) {
   return updateStore((data) => {
     data.meta = meta;
+  });
+}
+
+export function setPinHash(pinHash: string | null) {
+  return updateStore((data) => {
+    data.pinHash = pinHash;
   });
 }
