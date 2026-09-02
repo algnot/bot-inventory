@@ -120,10 +120,7 @@ export function MoveModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-55 flex items-end justify-center bg-ink/70 p-0 md:items-center md:p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-55 flex items-end justify-center bg-ink/70 p-0 md:items-center md:p-4">
       <div
         className="max-h-[94vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border-4 border-ink bg-cream p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:rounded-3xl md:p-6"
         onClick={(event) => event.stopPropagation()}

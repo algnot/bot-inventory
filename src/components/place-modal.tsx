@@ -683,10 +683,7 @@ export function PlaceModal({
           : "บันทึกแถวนี้";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-stretch justify-center bg-ink/70 md:items-center md:p-4"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-ink/70 md:items-center md:p-4">
       <div
         className="relative flex h-svh max-h-svh w-full max-w-6xl flex-col overflow-hidden border-4 border-ink bg-cream md:h-[min(90vh,52rem)] md:max-h-none md:rounded-3xl"
         onClick={(event) => event.stopPropagation()}

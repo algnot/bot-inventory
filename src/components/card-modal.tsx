@@ -57,10 +57,7 @@ export function CardModal({
   const symbolSrc = card.symbol ? symbolImageUrl(card.symbol) : null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/70 p-0 md:items-center md:p-6"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/70 p-0 md:items-center md:p-6">
       <div
         className="max-h-[94vh] w-full max-w-4xl overflow-y-auto rounded-t-3xl border-4 border-ink bg-cream pb-[max(1rem,env(safe-area-inset-bottom))] md:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
