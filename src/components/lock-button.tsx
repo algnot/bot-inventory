@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { canEditBox } from "@/lib/lock-client";
 import type { Box, LockState } from "@/lib/types";
 
-type Mode = "unlock" | "set" | "manage";
+type Mode = "unlock" | "forgot" | "set" | "manage";
 
 export function ReadOnlyBanner({
   box,
@@ -27,7 +27,6 @@ export function BoxUnlockModal() {
   const [lock, setLock] = useState<LockState | null>(null);
   const [mode, setMode] = useState<Mode>("unlock");
   const [pin, setPin] = useState("");
-  const [currentPin, setCurrentPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -53,7 +52,6 @@ export function BoxUnlockModal() {
       setBoxId(detail.boxId);
       if (detail.boxName) setBoxName(detail.boxName);
       setPin("");
-      setCurrentPin("");
       setError(null);
       void load(detail.boxId)
         .then((next) => {
@@ -114,7 +112,9 @@ export function BoxUnlockModal() {
                 ? "ตั้งรหัสกล่องนี้"
                 : mode === "manage"
                   ? "รหัสกล่องนี้"
-                  : "ใส่รหัสกล่องนี้"}
+                  : mode === "forgot"
+                    ? "ลืมรหัสกล่องนี้"
+                    : "ใส่รหัสกล่องนี้"}
             </h2>
             <p className="mt-1 text-sm text-muted">
               {boxName ? `กล่อง “${boxName}”` : "กล่องนี้"}
@@ -122,7 +122,9 @@ export function BoxUnlockModal() {
                 ? " — คนอื่นดูได้ แต่ต้องใส่รหัสนี้ถึงจะแก้กล่องใบนี้"
                 : mode === "manage"
                   ? " — เครื่องนี้ปลดล็อกกล่องนี้อยู่"
-                  : " — ดูได้อย่างเดียวจนกว่าจะใส่รหัสถูก"}
+                  : mode === "forgot"
+                    ? " — ใส่รหัสผ่าน admin เพื่อปลดล็อกทันที"
+                    : " — ดูได้อย่างเดียวจนกว่าจะใส่รหัสถูก"}
             </p>
           </div>
           <button
@@ -159,6 +161,59 @@ export function BoxUnlockModal() {
               className="h-12 w-full rounded-xl border-2 border-ink bg-ink font-extrabold text-cream disabled:opacity-50"
             >
               {busy ? "กำลังตรวจ..." : "ปลดล็อกกล่องนี้"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setMode("forgot");
+                setPin("");
+                setError(null);
+              }}
+              className="w-full text-sm font-bold underline"
+            >
+              ลืมรหัสกล่องนี้
+            </button>
+          </form>
+        )}
+
+        {mode === "forgot" && (
+          <form
+            className="mt-4 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void post({ action: "admin-unlock", pin });
+            }}
+          >
+            <label className="block text-sm font-bold">
+              รหัสผ่าน admin
+              <input
+                autoFocus
+                type="password"
+                value={pin}
+                onChange={(event) => setPin(event.target.value)}
+                className="mt-1 h-12 w-full rounded-xl border-2 border-ink bg-white px-3"
+              />
+            </label>
+            {error && <p className="text-sm font-bold text-bot-red">{error}</p>}
+            <button
+              type="submit"
+              disabled={busy || !pin.trim()}
+              className="h-12 w-full rounded-xl border-2 border-ink bg-ink font-extrabold text-cream disabled:opacity-50"
+            >
+              {busy ? "กำลังตรวจ..." : "ปลดล็อกทันที"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setMode("unlock");
+                setPin("");
+                setError(null);
+              }}
+              className="w-full text-sm font-bold underline"
+            >
+              ใส่รหัสกล่องแทน
             </button>
           </form>
         )}
@@ -206,19 +261,10 @@ export function BoxUnlockModal() {
               className="space-y-3 rounded-2xl border-2 border-ink bg-white p-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                void post({ action: "set", pin, currentPin }, false);
+                void post({ action: "set", pin }, false);
               }}
             >
               <p className="text-sm font-bold">เปลี่ยนรหัสกล่องนี้</p>
-              <label className="block text-sm font-bold">
-                รหัสปัจจุบัน
-                <input
-                  type="password"
-                  value={currentPin}
-                  onChange={(event) => setCurrentPin(event.target.value)}
-                  className="mt-1 h-11 w-full rounded-xl border-2 border-ink bg-cream px-3"
-                />
-              </label>
               <label className="block text-sm font-bold">
                 รหัสใหม่
                 <input

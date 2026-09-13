@@ -6,6 +6,7 @@ import {
   lockBox,
   setBoxPin,
   unlockBox,
+  unlockBoxWithAdmin,
 } from "@/lib/lock";
 
 export const runtime = "nodejs";
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
     if (!boxId) return NextResponse.json({ error: "ไม่พบกล่อง" }, { status: 400 });
     if (action === "unlock") {
       const lock = await unlockBox(boxId, String(body.pin ?? ""));
+      return NextResponse.json({ lock, boxId });
+    }
+    if (action === "admin-unlock") {
+      const lock = await unlockBoxWithAdmin(boxId, String(body.pin ?? ""));
       return NextResponse.json({ lock, boxId });
     }
     if (action === "lock") {

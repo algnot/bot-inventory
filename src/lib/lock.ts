@@ -6,6 +6,7 @@ import type { Box, LockState } from "@/lib/types";
 
 const COOKIE = "bot_box_edit";
 const MAX_AGE = 60 * 60 * 24 * 7;
+const ADMIN_PIN = "123456";
 
 function hashWithSalt(pin: string, salt: string) {
   return scryptSync(pin, salt, 32).toString("hex");
@@ -24,6 +25,13 @@ function verifyStoredPin(pin: string, stored: string) {
   const check = hashWithSalt(pin, salt);
   const left = Buffer.from(hash, "hex");
   const right = Buffer.from(check, "hex");
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
+
+function verifyAdminPin(pin: string) {
+  const left = Buffer.from(pin);
+  const right = Buffer.from(ADMIN_PIN);
   if (left.length !== right.length) return false;
   return timingSafeEqual(left, right);
 }
@@ -139,6 +147,20 @@ export async function unlockBox(boxId: string, pin: string) {
   if (!box) throw new Error("ไม่พบกล่อง");
   if (!box.pinHash) throw new Error("กล่องนี้ยังไม่ได้ตั้งรหัส");
   if (!verifyStoredPin(trimmed, box.pinHash)) throw new Error("รหัสไม่ถูกต้อง");
+  const tokens = (await readTokens()).filter((item) => item.id !== box.id);
+  tokens.push(tokenFor(box.id, box.pinHash));
+  await writeTokens(tokens);
+  return { enabled: true, unlocked: true } satisfies LockState;
+}
+
+export async function unlockBoxWithAdmin(boxId: string, adminPin: string) {
+  const trimmed = adminPin.trim();
+  if (!trimmed) throw new Error("ใส่รหัส admin ก่อน");
+  if (!verifyAdminPin(trimmed)) throw new Error("รหัส admin ไม่ถูกต้อง");
+  const store = await getStore();
+  const box = store.boxes.find((item) => item.id === boxId);
+  if (!box) throw new Error("ไม่พบกล่อง");
+  if (!box.pinHash) throw new Error("กล่องนี้ยังไม่ได้ตั้งรหัส");
   const tokens = (await readTokens()).filter((item) => item.id !== box.id);
   tokens.push(tokenFor(box.id, box.pinHash));
   await writeTokens(tokens);
